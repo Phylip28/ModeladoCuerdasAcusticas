@@ -5,7 +5,7 @@ clásico y el entrenamiento de una Red Neuronal Artificial (MLP) para
 comparar ambos enfoques de regresión.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -28,6 +28,15 @@ class ResultadoPolinomial:
 @dataclass
 class ResultadoMLP:
     """Resultado del entrenamiento de la red neuronal MLP."""
+
+    modelo: Pipeline
+    mse: float
+    loss_curve: list[float] = field(default_factory=list)
+
+
+@dataclass
+class ResultadoInverso:
+    """Resultado del modelo inverso (frecuencia -> longitud)."""
 
     modelo: Pipeline
     mse: float
@@ -175,7 +184,69 @@ class ModeladorMaestro:
         pipeline.fit(X, y)
         y_pred = pipeline.predict(X)
 
+        mlp_step = pipeline.named_steps["mlp"]
+        loss_curve = list(mlp_step.loss_curve_) if hasattr(mlp_step, "loss_curve_") else []
+
         return ResultadoMLP(
             modelo=pipeline,
             mse=mean_squared_error(y, y_pred),
+            loss_curve=loss_curve,
+        )
+
+    def crear_modelo_inverso(
+        self,
+        X_frecuencia: np.ndarray,
+        y_longitud: np.ndarray,
+        *,
+        capas_ocultas: tuple[int, ...] = (50, 50),
+        max_iter: int = 10000,
+        learning_rate_init: float = 0.01,
+        random_state: int = 42,
+    ) -> ResultadoInverso:
+        """Entrena un modelo inverso: frecuencia (Hz) -> longitud (cm).
+
+        A diferencia del flujo normal (longitud -> frecuencia), aquí se
+        invierte la relación para predecir la longitud de cuerda a partir
+        de una frecuencia capturada.
+
+        Parameters
+        ----------
+        X_frecuencia : np.ndarray
+            Frecuencias medidas (Hz) como variable independiente.
+        y_longitud : np.ndarray
+            Longitudes de cuerda (cm) como variable objetivo.
+        capas_ocultas : tuple[int, ...], optional
+            Arquitectura de capas ocultas (por defecto ``(50, 50)``).
+        max_iter : int, optional
+            Iteraciones máximas (por defecto 10 000).
+        learning_rate_init : float, optional
+            Tasa de aprendizaje inicial (por defecto 0.01).
+        random_state : int, optional
+            Semilla para reproducibilidad (por defecto 42).
+
+        Returns
+        -------
+        ResultadoInverso
+            Contiene el pipeline entrenado y el MSE.
+        """
+        X_frecuencia, y_longitud = self._validar_entradas(X_frecuencia, y_longitud)
+
+        pipeline = Pipeline([
+            ("scaler", StandardScaler()),
+            ("mlp", MLPRegressor(
+                hidden_layer_sizes=capas_ocultas,
+                activation="relu",
+                solver="adam",
+                max_iter=max_iter,
+                learning_rate_init=learning_rate_init,
+                random_state=random_state,
+            )),
+        ])
+
+        pipeline.fit(X_frecuencia, y_longitud)
+        y_pred = pipeline.predict(X_frecuencia)
+
+        return ResultadoInverso(
+            modelo=pipeline,
+            mse=mean_squared_error(y_longitud, y_pred),
         )

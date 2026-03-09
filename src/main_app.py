@@ -29,6 +29,7 @@ if str(_SRC_DIR) not in sys.path:
 from audio_capture import AnalizadorAudio, AudioNoDisponibleError
 from data_loader import (
     cargar_datos, cargar_dataframe, obtener_traste_mas_cercano,
+    obtener_traste_por_frecuencia,
     _DEFAULT_DATASET_PATH, COLUMNA_LONGITUD, COLUMNAS_FRECUENCIA,
 )
 from models import ModeladorMaestro, ResultadoMLP, ResultadoPolinomial, ResultadoInverso
@@ -393,10 +394,10 @@ class AplicacionPrincipal(ctk.CTk):
     # --- Captura de audio ---------------------------------------------
     def _capturar_audio(self) -> None:
         """Inicia la captura de audio en un hilo separado."""
-        if self._resultado_inverso is None:
+        if self._df_original is None:
             messagebox.showwarning(
-                "Modelos no entrenados",
-                "Primero ejecuta los modelos para poder detectar trastes.",
+                "Datos no cargados",
+                "Primero ejecuta los modelos para cargar el dataset.",
             )
             return
 
@@ -407,24 +408,27 @@ class AplicacionPrincipal(ctk.CTk):
         threading.Thread(target=self._hilo_captura, daemon=True).start()
 
     def _hilo_captura(self) -> None:
-        """Hilo de captura: graba -> detecta Hz -> predice longitud -> busca traste."""
+        """Hilo de captura: graba -> detecta Hz -> busca traste por frecuencia."""
         try:
             frecuencia = self._analizador.capturar_frecuencia(duracion=6, fs=44100)
+            columna = self._combo_columna.get()
 
-            # Modelo inverso: Hz -> longitud estimada
-            freq_arr = np.array([[frecuencia]])
-            longitud_estimada = float(
-                self._resultado_inverso.modelo.predict(freq_arr)[0]
+            # Busqueda directa: Hz capturado vs Hz del dataset
+            info_traste = obtener_traste_por_frecuencia(
+                self._df_original, frecuencia, columna,
             )
 
-            # Busqueda de traste mas cercano
-            info_traste = obtener_traste_mas_cercano(
-                self._df_original, longitud_estimada,
-            )
+            # Longitud estimada por modelo inverso (informativa, si existe)
+            longitud_modelo = None
+            if self._resultado_inverso is not None:
+                freq_arr = np.array([[frecuencia]])
+                longitud_modelo = float(
+                    self._resultado_inverso.modelo.predict(freq_arr)[0]
+                )
 
             self.after(
                 0, self._mostrar_resultado_completo,
-                frecuencia, longitud_estimada, info_traste,
+                frecuencia, longitud_modelo, info_traste,
             )
         except (AudioNoDisponibleError, ValueError) as exc:
             self.after(0, self._mostrar_error_audio, str(exc))
@@ -432,20 +436,24 @@ class AplicacionPrincipal(ctk.CTk):
     def _mostrar_resultado_completo(
         self,
         frecuencia: float,
-        longitud_estimada: float,
+        longitud_modelo: float | None,
         info_traste: dict,
     ) -> None:
-        """Actualiza la UI con frecuencia, longitud inferida y traste."""
+        """Actualiza la UI con frecuencia, traste detectado e info adicional."""
         self._lbl_frecuencia.configure(text=f"{frecuencia:.2f} Hz")
         self._lbl_traste.configure(
             text=f"Traste Detectado: {info_traste['Traste']}!",
         )
-        self._lbl_longitud_inferida.configure(
-            text=(
-                f"Longitud inferida: {longitud_estimada:.2f} cm  |  "
-                f"Longitud real del traste: {info_traste['Longitud Real']:.1f} cm"
-            ),
+
+        freq_real = info_traste.get('Frecuencia Real', 0.0)
+        detalle = (
+            f"Frecuencia dataset: {freq_real:.1f} Hz  |  "
+            f"Longitud real: {info_traste['Longitud Real']:.1f} cm"
         )
+        if longitud_modelo is not None:
+            detalle += f"  |  Longitud modelo inverso: {longitud_modelo:.2f} cm"
+
+        self._lbl_longitud_inferida.configure(text=detalle)
         self._lbl_estado_audio.configure(
             text="Deteccion completada correctamente", text_color="#66bb6a",
         )

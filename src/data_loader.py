@@ -175,3 +175,49 @@ def obtener_traste_mas_cercano(
         "Traste": int(df.loc[idx_minimo, COLUMNA_TRASTE]),
         "Longitud Real": float(df.loc[idx_minimo, COLUMNA_LONGITUD]),
     }
+
+
+def obtener_traste_por_frecuencia(
+    df_original: pd.DataFrame,
+    frecuencia_capturada: float,
+    columna_frecuencia: str,
+) -> dict:
+    """Encuentra el traste cuya frecuencia registrada es la más cercana a la capturada.
+
+    Este método es más fiable que el modelo inverso cuando el dataset es
+    pequeño, ya que compara directamente contra los valores medidos.
+
+    Parameters
+    ----------
+    df_original : pd.DataFrame
+        DataFrame completo con columnas ``'Traste'``, ``'Longitud (cm)'`` y la
+        columna de frecuencia indicada.
+    frecuencia_capturada : float
+        Frecuencia en Hz detectada por el micrófono.
+    columna_frecuencia : str
+        Nombre de la columna de frecuencia contra la que comparar
+        (p. ej. ``'Hz Spectroid (Android)'``).
+
+    Returns
+    -------
+    dict
+        ``{'Traste': int, 'Longitud Real': float, 'Frecuencia Real': float}``.
+
+    Raises
+    ------
+    KeyError
+        Si alguna columna requerida no existe en el DataFrame.
+    """
+    for col in (COLUMNA_TRASTE, COLUMNA_LONGITUD, columna_frecuencia):
+        if col not in df_original.columns:
+            raise KeyError(f"Columna '{col}' no encontrada en el DataFrame.")
+
+    df = df_original[[COLUMNA_TRASTE, COLUMNA_LONGITUD, columna_frecuencia]].dropna()
+    diferencias = (df[columna_frecuencia] - frecuencia_capturada).abs()
+    idx_minimo = diferencias.idxmin()
+
+    return {
+        "Traste": int(df.loc[idx_minimo, COLUMNA_TRASTE]),
+        "Longitud Real": float(df.loc[idx_minimo, COLUMNA_LONGITUD]),
+        "Frecuencia Real": float(df.loc[idx_minimo, columna_frecuencia]),
+    }

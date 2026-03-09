@@ -104,3 +104,74 @@ def cargar_datos(
     y = df[columna_frecuencia].to_numpy(dtype=np.float64)
 
     return X, y
+
+
+COLUMNA_TRASTE = "Traste"
+
+
+def cargar_dataframe(
+    ruta_csv: Path | str = _DEFAULT_DATASET_PATH,
+) -> pd.DataFrame:
+    """Carga el CSV completo como DataFrame limpio.
+
+    Parameters
+    ----------
+    ruta_csv : Path | str, optional
+        Ruta al archivo CSV.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con columnas vacías eliminadas y tipos numéricos limpios.
+    """
+    ruta_csv = Path(ruta_csv)
+    if not ruta_csv.exists():
+        raise FileNotFoundError(f"No se encontró el dataset en: {ruta_csv}")
+
+    df = pd.read_csv(ruta_csv)
+    df = df.dropna(axis=1, how="all")
+    df = df.loc[:, ~df.columns.str.startswith("Unnamed")]
+
+    if COLUMNA_LONGITUD in df.columns:
+        df[COLUMNA_LONGITUD] = _limpiar_columna_numerica(df[COLUMNA_LONGITUD])
+    if COLUMNA_TRASTE in df.columns:
+        df[COLUMNA_TRASTE] = _limpiar_columna_numerica(df[COLUMNA_TRASTE])
+
+    return df
+
+
+def obtener_traste_mas_cercano(
+    df_original: pd.DataFrame,
+    longitud_estimada: float,
+) -> dict:
+    """Encuentra el traste cuya longitud real es la más cercana a la estimada.
+
+    Parameters
+    ----------
+    df_original : pd.DataFrame
+        DataFrame completo con columnas ``'Traste'`` y ``'Longitud (cm)'``.
+    longitud_estimada : float
+        Longitud en cm predicha por el modelo inverso.
+
+    Returns
+    -------
+    dict
+        Diccionario con claves ``'Traste'`` (int) y ``'Longitud Real'`` (float).
+
+    Raises
+    ------
+    KeyError
+        Si las columnas requeridas no existen en el DataFrame.
+    """
+    for col in (COLUMNA_TRASTE, COLUMNA_LONGITUD):
+        if col not in df_original.columns:
+            raise KeyError(f"Columna '{col}' no encontrada en el DataFrame.")
+
+    df = df_original[[COLUMNA_TRASTE, COLUMNA_LONGITUD]].dropna()
+    diferencias = (df[COLUMNA_LONGITUD] - longitud_estimada).abs()
+    idx_minimo = diferencias.idxmin()
+
+    return {
+        "Traste": int(df.loc[idx_minimo, COLUMNA_TRASTE]),
+        "Longitud Real": float(df.loc[idx_minimo, COLUMNA_LONGITUD]),
+    }

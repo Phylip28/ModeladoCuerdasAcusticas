@@ -27,8 +27,11 @@ if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
 from audio_capture import AnalizadorAudio, AudioNoDisponibleError
-from data_loader import cargar_datos, _DEFAULT_DATASET_PATH, COLUMNA_LONGITUD, COLUMNAS_FRECUENCIA
-from models import ModeladorMaestro, ResultadoMLP, ResultadoPolinomial
+from data_loader import (
+    cargar_datos, cargar_dataframe, obtener_traste_mas_cercano,
+    _DEFAULT_DATASET_PATH, COLUMNA_LONGITUD, COLUMNAS_FRECUENCIA,
+)
+from models import ModeladorMaestro, ResultadoMLP, ResultadoPolinomial, ResultadoInverso
 from report_generator import generar_pdf_reporte
 
 # ---------------------------------------------------------------------------
@@ -63,6 +66,8 @@ class AplicacionPrincipal(ctk.CTk):
         self._y: np.ndarray | None = None
         self._resultado_poly: ResultadoPolinomial | None = None
         self._resultado_mlp: ResultadoMLP | None = None
+        self._resultado_inverso: ResultadoInverso | None = None
+        self._df_original = None
         self._ruta_grafico: Path | None = None
 
         self._construir_layout()
@@ -163,8 +168,8 @@ class AplicacionPrincipal(ctk.CTk):
 
         ctk.CTkLabel(
             tab,
-            text="Pulsa el botón, toca la cuerda de la guitarra y espera a que\n"
-                 "se detecte la frecuencia fundamental.",
+            text="Pulsa el botón, toca la cuerda de la guitarra y espera 6 segundos\n"
+                 "para que se detecte la frecuencia fundamental.",
             text_color="gray60",
         ).grid(row=1, column=0, pady=5)
 
@@ -185,12 +190,27 @@ class AplicacionPrincipal(ctk.CTk):
             font=ctk.CTkFont(size=48, weight="bold"),
             text_color="#64b5f6",
         )
-        self._lbl_frecuencia.grid(row=3, column=0, pady=10)
+        self._lbl_frecuencia.grid(row=3, column=0, pady=(10, 2))
+
+        # --- Resultados de detección de traste ---
+        self._lbl_traste = ctk.CTkLabel(
+            tab, text="",
+            font=ctk.CTkFont(size=32, weight="bold"),
+            text_color="#ffa726",
+        )
+        self._lbl_traste.grid(row=4, column=0, pady=(5, 2))
+
+        self._lbl_longitud_inferida = ctk.CTkLabel(
+            tab, text="",
+            font=ctk.CTkFont(size=16),
+            text_color="#81c784",
+        )
+        self._lbl_longitud_inferida.grid(row=5, column=0, pady=(0, 5))
 
         self._lbl_estado_audio = ctk.CTkLabel(
             tab, text="Listo para capturar", text_color="gray50",
         )
-        self._lbl_estado_audio.grid(row=4, column=0, pady=5)
+        self._lbl_estado_audio.grid(row=6, column=0, pady=5)
 
     # --- Pestaña 2: Visualización -------------------------------------
     def _construir_tab_visualizacion(self) -> None:
@@ -265,6 +285,14 @@ class AplicacionPrincipal(ctk.CTk):
 
         # Red neuronal MLP
         self._resultado_mlp = self._modelador.red_neuronal_mlp(self._X, self._y)
+
+        # Modelo inverso (frecuencia -> longitud)
+        self._resultado_inverso = self._modelador.crear_modelo_inverso(
+            X_frecuencia=self._y, y_longitud=self._X,
+        )
+
+        # Cargar DataFrame completo para b\u00fasqueda de traste
+        self._df_original = cargar_dataframe()
 
         self._actualizar_grafico(columna, grado)
         self._actualizar_resultados(columna, grado)
@@ -365,27 +393,68 @@ class AplicacionPrincipal(ctk.CTk):
     # --- Captura de audio ---------------------------------------------
     def _capturar_audio(self) -> None:
         """Inicia la captura de audio en un hilo separado."""
+        if self._resultado_inverso is None:
+            messagebox.showwarning(
+                "Modelos no entrenados",
+                "Primero ejecuta los modelos para poder detectar trastes.",
+            )
+            return
+
         self._btn_capturar.configure(state="disabled", text="🎤  Grabando...")
-        self._lbl_estado_audio.configure(text="Grabando… toca la cuerda ahora", text_color="#ffa726")
+        self._lbl_estado_audio.configure(text="Grabando 6 segundos... toca la cuerda ahora", text_color="#ffa726")
+        self._lbl_traste.configure(text="")
+        self._lbl_longitud_inferida.configure(text="")
         threading.Thread(target=self._hilo_captura, daemon=True).start()
 
     def _hilo_captura(self) -> None:
-        """Hilo de captura para no bloquear la UI."""
+        """Hilo de captura: graba -> detecta Hz -> predice longitud -> busca traste."""
         try:
-            frecuencia = self._analizador.capturar_frecuencia(duracion=2, fs=44100)
-            self.after(0, self._mostrar_frecuencia, frecuencia)
+            frecuencia = self._analizador.capturar_frecuencia(duracion=6, fs=44100)
+
+            # Modelo inverso: Hz -> longitud estimada
+            freq_arr = np.array([[frecuencia]])
+            longitud_estimada = float(
+                self._resultado_inverso.modelo.predict(freq_arr)[0]
+            )
+
+            # Busqueda de traste mas cercano
+            info_traste = obtener_traste_mas_cercano(
+                self._df_original, longitud_estimada,
+            )
+
+            self.after(
+                0, self._mostrar_resultado_completo,
+                frecuencia, longitud_estimada, info_traste,
+            )
         except (AudioNoDisponibleError, ValueError) as exc:
             self.after(0, self._mostrar_error_audio, str(exc))
 
-    def _mostrar_frecuencia(self, frecuencia: float) -> None:
+    def _mostrar_resultado_completo(
+        self,
+        frecuencia: float,
+        longitud_estimada: float,
+        info_traste: dict,
+    ) -> None:
+        """Actualiza la UI con frecuencia, longitud inferida y traste."""
         self._lbl_frecuencia.configure(text=f"{frecuencia:.2f} Hz")
+        self._lbl_traste.configure(
+            text=f"Traste Detectado: {info_traste['Traste']}!",
+        )
+        self._lbl_longitud_inferida.configure(
+            text=(
+                f"Longitud inferida: {longitud_estimada:.2f} cm  |  "
+                f"Longitud real del traste: {info_traste['Longitud Real']:.1f} cm"
+            ),
+        )
         self._lbl_estado_audio.configure(
-            text="Frecuencia detectada correctamente ✔", text_color="#66bb6a",
+            text="Deteccion completada correctamente", text_color="#66bb6a",
         )
         self._btn_capturar.configure(state="normal", text="🎤  Capturar Frecuencia")
 
     def _mostrar_error_audio(self, mensaje: str) -> None:
         self._lbl_frecuencia.configure(text="— Hz")
+        self._lbl_traste.configure(text="")
+        self._lbl_longitud_inferida.configure(text="")
         self._lbl_estado_audio.configure(text=f"Error: {mensaje}", text_color="#ef5350")
         self._btn_capturar.configure(state="normal", text="🎤  Capturar Frecuencia")
 
@@ -424,6 +493,7 @@ class AplicacionPrincipal(ctk.CTk):
                 datos_modelos=datos_modelos,
                 ruta_grafico=self._ruta_grafico,
                 nombre_archivo=f"reporte_{columna}.pdf",
+                loss_curve=self._resultado_mlp.loss_curve,
             )
             messagebox.showinfo(
                 "PDF Generado",

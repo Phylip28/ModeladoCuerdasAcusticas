@@ -7,6 +7,9 @@ comparativa, ecuaciones y gráficos.
 from pathlib import Path
 from typing import Sequence
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 from fpdf import FPDF
 
@@ -180,11 +183,63 @@ def _agregar_grafico(pdf: _PDFReporte, ruta_grafico: Path) -> None:
     pdf.add_page()
     pdf.set_font(_FONT_FAMILY, "B", 14)
     pdf.set_text_color(*_COLOR_ENCABEZADO)
-    pdf.cell(0, 10, "Gráfico Comparativo", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 10, "Grafico Comparativo", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     ancho_disponible = pdf.w - pdf.l_margin - pdf.r_margin
     pdf.image(str(ruta_grafico), x=pdf.l_margin, w=ancho_disponible)
+
+
+def _generar_grafico_loss_curve(
+    loss_curve: list[float],
+    directorio: Path,
+) -> Path:
+    """Genera una imagen PNG de la curva de pérdida de la red neuronal.
+
+    Parameters
+    ----------
+    loss_curve : list[float]
+        Lista de valores de loss por época (``MLPRegressor.loss_curve_``).
+    directorio : Path
+        Carpeta donde guardar la imagen.
+
+    Returns
+    -------
+    Path
+        Ruta al archivo PNG generado.
+    """
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(loss_curve, color="#ef5350", linewidth=1.5)
+    ax.set_xlabel("Iteracion")
+    ax.set_ylabel("Loss (MSE)")
+    ax.set_title("Convergencia de la Red Neuronal")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    ruta = directorio / "loss_curve.png"
+    fig.savefig(ruta, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return ruta
+
+
+def _agregar_loss_curve(pdf: _PDFReporte, ruta_loss: Path) -> None:
+    """Agrega la gráfica de convergencia de la red neuronal al PDF."""
+    pdf.add_page()
+    pdf.set_font(_FONT_FAMILY, "B", 14)
+    pdf.set_text_color(*_COLOR_ENCABEZADO)
+    pdf.cell(0, 10, "Convergencia de la Red Neuronal", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    pdf.set_font(_FONT_FAMILY, "", 10)
+    pdf.set_text_color(60, 60, 60)
+    pdf.multi_cell(0, 6,
+        "La siguiente grafica muestra la curva de perdida (loss) del MLPRegressor "
+        "durante el entrenamiento. Un descenso estable indica buena convergencia."
+    )
+    pdf.ln(4)
+
+    ancho_disponible = pdf.w - pdf.l_margin - pdf.r_margin
+    pdf.image(str(ruta_loss), x=pdf.l_margin, w=ancho_disponible)
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +251,7 @@ def generar_pdf_reporte(
     ruta_grafico: str | Path,
     nombre_archivo: str = "reporte_modelado.pdf",
     directorio_salida: str | Path | None = None,
+    loss_curve: list[float] | None = None,
 ) -> Path:
     """Genera un PDF profesional con los resultados del modelado.
 
@@ -218,6 +274,8 @@ def generar_pdf_reporte(
         Nombre del archivo PDF de salida (por defecto ``'reporte_modelado.pdf'``).
     directorio_salida : str | Path | None, optional
         Directorio donde guardar el PDF. Si es ``None``, usa ``reports/``.
+    loss_curve : list[float] | None, optional
+        Curva de pérdida del MLPRegressor para incluir en el reporte.
 
     Returns
     -------
@@ -263,6 +321,11 @@ def generar_pdf_reporte(
 
     # --- Gráfico ---
     _agregar_grafico(pdf, ruta_grafico)
+
+    # --- Curva de convergencia ---
+    if loss_curve:
+        ruta_loss = _generar_grafico_loss_curve(loss_curve, directorio_salida)
+        _agregar_loss_curve(pdf, ruta_loss)
 
     pdf.output(str(ruta_pdf))
     return ruta_pdf

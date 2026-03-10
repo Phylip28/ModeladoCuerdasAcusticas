@@ -140,6 +140,7 @@
               <span class="sm-name" :style="{ color: 'var(--mc)' }">{{ res.etiqueta }}</span>
               <div class="sm-badges">
                 <span class="sm-badge sm-r2">R² {{ res.metricas.r2 != null ? res.metricas.r2.toFixed(3) : '—' }}</span>
+                <span class="sm-badge sm-rmse">RMSE {{ res.metricas.rmse.toFixed(3) }}</span>
                 <span class="sm-badge sm-mse">MSE {{ res.metricas.mse.toFixed(3) }}</span>
                 <span class="sm-badge sm-mae">MAE {{ res.metricas.mae.toFixed(3) }}</span>
               </div>
@@ -463,6 +464,11 @@ function formatPredLabel(p, idx, arr) {
 .sm-r2 {
   border-color: rgba(0,212,170,0.3);
   color: var(--teal);
+}
+
+.sm-rmse {
+  border-color: rgba(251,146,60,0.3);
+  color: #FB923C;
 }
 
 .sm-mse {

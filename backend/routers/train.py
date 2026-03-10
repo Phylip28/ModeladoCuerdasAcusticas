@@ -117,6 +117,7 @@ def entrenar_modelos(req: TrainRequest):
                     etiqueta=f"Polinomial grado {grado}",
                     metricas=MetricasModelo(
                         mse=float(res.mse),
+                        rmse=float(np.sqrt(res.mse)),
                         r2=float(res.r2),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
@@ -146,6 +147,7 @@ def entrenar_modelos(req: TrainRequest):
                     etiqueta="Red Neuronal (MLP)",
                     metricas=MetricasModelo(
                         mse=float(res.mse),
+                        rmse=float(np.sqrt(res.mse)),
                         r2=float(r2_score(y, y_pred)),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
@@ -178,6 +180,7 @@ def entrenar_modelos(req: TrainRequest):
                     etiqueta=f"SVR ({kernel}, C={C})",
                     metricas=MetricasModelo(
                         mse=float(mean_squared_error(y, y_pred)),
+                        rmse=float(np.sqrt(mean_squared_error(y, y_pred))),
                         r2=float(r2_score(y, y_pred)),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
@@ -207,6 +210,7 @@ def entrenar_modelos(req: TrainRequest):
                     etiqueta=f"KNN (k={k})",
                     metricas=MetricasModelo(
                         mse=float(mean_squared_error(y, y_pred)),
+                        rmse=float(np.sqrt(mean_squared_error(y, y_pred))),
                         r2=float(r2_score(y, y_pred)),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
@@ -240,6 +244,7 @@ def entrenar_modelos(req: TrainRequest):
                     etiqueta=f"Árbol Decisión ({depth_label})",
                     metricas=MetricasModelo(
                         mse=float(mean_squared_error(y, y_pred)),
+                        rmse=float(np.sqrt(mean_squared_error(y, y_pred))),
                         r2=float(r2_score(y, y_pred)),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
@@ -275,6 +280,7 @@ def entrenar_modelos(req: TrainRequest):
                     etiqueta=f"Random Forest ({n_est} árboles)",
                     metricas=MetricasModelo(
                         mse=float(mean_squared_error(y, y_pred)),
+                        rmse=float(np.sqrt(mean_squared_error(y, y_pred))),
                         r2=float(r2_score(y, y_pred)),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),

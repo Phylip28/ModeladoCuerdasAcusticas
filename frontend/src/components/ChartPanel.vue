@@ -60,6 +60,10 @@
               <span class="mc-k">R²</span>
             </div>
             <div class="mc-m">
+              <span class="mc-v mono">{{ res.metricas.rmse.toFixed(2) }}</span>
+              <span class="mc-k">RMSE</span>
+            </div>
+            <div class="mc-m">
               <span class="mc-v mono">{{ res.metricas.mse.toFixed(2) }}</span>
               <span class="mc-k">MSE</span>
             </div>
@@ -73,6 +77,17 @@
 
       <!-- Charts 2-col -->
       <div class="charts-grid">
+        <!-- Raw data scatter (no models) -->
+        <div class="chart-card chart-full">
+          <div class="chart-title">
+            Dispersión — Datos Reales
+            <span class="chart-sub">sin modelos &mdash; {{ activeSession.longitudes_originales?.length ?? 0 }} puntos</span>
+          </div>
+          <div class="chart-wrap chart-wrap-sm">
+            <Scatter :data="rawScatterData" :options="rawScatterOptions" />
+          </div>
+        </div>
+
         <!-- Scatter + fit curves -->
         <div class="chart-card">
           <div class="chart-title">Dispersión + Curvas de Ajuste</div>
@@ -210,6 +225,60 @@ const baseChartOptions = {
     },
   },
 };
+
+// ── Raw data scatter (points only, no model curves) ──
+ const rawScatterData = computed(() => {
+  if (!activeSession.value) return { datasets: [] };
+  const { longitudes_originales: Xs, frecuencias_originales: ys } = activeSession.value;
+  return {
+    datasets: [
+      {
+        label: "Datos reales",
+        data: Xs.map((x, i) => ({ x, y: ys[i] })),
+        backgroundColor: "rgba(245,200,66,0.75)",
+        borderColor: "rgba(245,200,66,0.4)",
+        borderWidth: 1,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+      },
+    ],
+  };
+});
+
+const rawScatterOptions = computed(() => ({
+  ...baseChartOptions,
+  plugins: {
+    ...baseChartOptions.plugins,
+    legend: { display: false },
+    tooltip: {
+      ...baseChartOptions.plugins.tooltip,
+      callbacks: {
+        label: (ctx) => ` L=${ctx.parsed.x.toFixed(1)} cm  f=${ctx.parsed.y.toFixed(1)} Hz`,
+      },
+    },
+  },
+  scales: {
+    x: {
+      ...baseChartOptions.scales.x,
+      type: "linear",
+      title: {
+        display: true,
+        text: "Longitud L (cm)",
+        color: "#4A5578",
+        font: { family: "Space Mono", size: 11 },
+      },
+    },
+    y: {
+      ...baseChartOptions.scales.y,
+      title: {
+        display: true,
+        text: "Frecuencia (Hz)",
+        color: "#4A5578",
+        font: { family: "Space Mono", size: 11 },
+      },
+    },
+  },
+}));
 
 // ── Scatter data ──
 const scatterData = computed(() => {
@@ -584,6 +653,18 @@ const lossOptions = computed(() => ({
   color: var(--text-muted);
   margin-bottom: 10px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-sub {
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .chart-wrap {

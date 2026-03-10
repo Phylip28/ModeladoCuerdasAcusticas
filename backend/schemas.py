@@ -89,6 +89,7 @@ class CurvaAjuste(BaseModel):
 
 class MetricasModelo(BaseModel):
     mse: float
+    rmse: float
     r2: Optional[float] = None
     mae: float
 

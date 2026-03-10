@@ -44,7 +44,7 @@ class ConfigPolinomial(BaseModel):
 
 
 class ConfigMLP(BaseModel):
-    epocas: int = Field(default=500, ge=10, le=3000)
+    epocas: int = Field(default=500, ge=10)
     unidades: int = Field(default=10, ge=1, le=200)
     learning_rate: float = Field(default=0.01, gt=0)
     activacion: str = Field(default="relu")

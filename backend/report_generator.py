@@ -11,7 +11,6 @@ import numpy as np
 from fpdf import FPDF
 
 _TITULO_TRABAJO = "Modelado Matemático de Cuerdas Acústicas"
-_INTEGRANTES = ["Juan Felipe Rendon Herrera"]
 _FONT_FAMILY = "Helvetica"
 _COLOR_ENCABEZADO = (41, 65, 122)
 _COLOR_FILA_PAR = (234, 240, 251)
@@ -62,8 +61,6 @@ def _agregar_portada(pdf: _PDFReporte) -> None:
     pdf.ln(10)
     pdf.cell(0, 8, "Integrantes:", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font(_FONT_FAMILY, "I", 12)
-    for nombre in _INTEGRANTES:
-        pdf.cell(0, 7, nombre, align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(10)
     pdf.set_font(_FONT_FAMILY, "", 10)
     pdf.set_text_color(100, 100, 100)

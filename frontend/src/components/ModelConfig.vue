@@ -105,7 +105,7 @@
             <input
               v-model.number="store.mlpEpocas"
               type="number"
-              min="10" max="3000" step="10"
+              min="10" step="10"
               :disabled="!isSelected('mlp')"
             />
           </div>

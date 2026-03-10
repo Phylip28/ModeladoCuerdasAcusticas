@@ -111,7 +111,7 @@
       <div class="results-area">
         <Transition name="fade">
           <div
-            v-if="!store.predictResult && store.hasTrainResults"
+            v-if="!activePrediction && store.hasTrainResults"
             class="results-empty"
           >
             <p class="text-muted">
@@ -119,20 +119,20 @@
             </p>
           </div>
 
-          <div v-else-if="store.predictResult" class="results-list">
+          <div v-else-if="activePrediction" class="results-list">
             <div
-              v-for="pred in store.predictResult.predicciones"
+              v-for="pred in activePrediction.predicciones"
               :key="pred.nombre"
               class="pred-card"
               :class="{
-                'pred-best': pred.nombre === store.predictResult.mejor_modelo,
+                'pred-best': pred.nombre === activePrediction.mejor_modelo,
               }"
               :style="{ '--mc': modelColor(pred.nombre) }"
             >
               <div class="pred-top">
                 <span class="pred-name">{{ pred.etiqueta }}</span>
                 <span
-                  v-if="pred.nombre === store.predictResult.mejor_modelo"
+                  v-if="pred.nombre === activePrediction.mejor_modelo"
                   class="badge badge-teal"
                   >Mejor R²</span
                 >
@@ -160,7 +160,7 @@
               <div class="phys-body">
                 Para L =
                 <strong class="mono text-gold"
-                  >{{ store.predictResult.longitud_cm }} cm</strong
+                  >{{ activePrediction.longitud_cm }} cm</strong
                 >, la física predice f ≈
                 <strong class="mono text-teal"
                   >{{ physicsEstimate.toFixed(1) }} Hz</strong
@@ -198,11 +198,9 @@ function modelColor(nombre) {
 const selectedPredictId = ref(null);
 
 watch(
-  () => store.predictHistory.length,
-  () => {
-    if (store.predictHistory.length > 0) {
-      selectedPredictId.value = store.predictHistory.at(-1).predict_id;
-    }
+  () => store.predictHistory.at(-1)?.predict_id,
+  (newId) => {
+    if (newId) selectedPredictId.value = newId;
   }
 );
 

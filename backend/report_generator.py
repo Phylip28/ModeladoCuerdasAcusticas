@@ -59,9 +59,6 @@ def _agregar_portada(pdf: _PDFReporte) -> None:
     pdf.set_font(_FONT_FAMILY, "", 12)
     pdf.set_text_color(60, 60, 60)
     pdf.ln(10)
-    pdf.cell(0, 8, "Integrantes:", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font(_FONT_FAMILY, "I", 12)
-    pdf.ln(10)
     pdf.set_font(_FONT_FAMILY, "", 10)
     pdf.set_text_color(100, 100, 100)
     pdf.cell(

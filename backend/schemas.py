@@ -6,7 +6,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
-# ─── Datos ─────────────────────────────────────────────────────────────────
+# Datos
 
 
 class PuntoDataset(BaseModel):
@@ -22,7 +22,7 @@ class DatasetResponse(BaseModel):
     is_manual: bool = False
 
 
-# ─── Entrada manual ─────────────────────────────────────────────────────────
+# Entrada manual
 
 
 class PuntoManual(BaseModel):
@@ -36,7 +36,7 @@ class ManualDataRequest(BaseModel):
     columnas: list[str]  # nombres de columnas en orden
 
 
-# ─── Entrenamiento ──────────────────────────────────────────────────────────
+# Entrenamiento
 
 
 class ConfigPolinomial(BaseModel):
@@ -112,11 +112,12 @@ class TrainResponse(BaseModel):
     resultados: list[ResultadoModelo]
 
 
-# ─── Predicción ─────────────────────────────────────────────────────────────
+# Predicción
 
 
 class PredictRequest(BaseModel):
     longitud_cm: float = Field(gt=0, description="Longitud de cuerda en cm")
+    session_id: Optional[str] = Field(default=None, description="ID de sesión de entrenamiento. Si es None usa la última.")
 
 
 class PrediccionModelo(BaseModel):

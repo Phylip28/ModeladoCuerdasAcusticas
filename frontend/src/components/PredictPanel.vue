@@ -53,58 +53,99 @@
     </div>
 
     <div class="predict-layout">
-      <!-- Input card -->
-      <div class="input-card card">
-        <div class="input-card-title">Longitud de cuerda</div>
+      <!-- Left column -->
+      <div class="predict-left">
+        <!-- Input card -->
+        <div class="input-card card">
+          <div class="input-card-title">Longitud de cuerda</div>
 
-        <div class="slider-area">
-          <input
-            v-model.number="store.predictLength"
-            type="range"
-            min="20"
-            max="70"
-            step="0.1"
-            class="length-slider"
-            :disabled="!store.hasTrainResults"
-          />
-          <div class="slider-labels">
-            <span class="mono">20 cm</span>
-            <span class="mono">70 cm</span>
+          <!-- Training session selector -->
+          <div v-if="store.hasTrainResults" class="session-pick-wrap">
+            <span class="session-pick-label">SESIÓN</span>
+            <select v-model="store.predictSessionId" class="session-pick-select">
+              <option
+                v-for="(s, idx) in [...store.trainHistory].reverse()"
+                :key="s.session_id"
+                :value="s.session_id"
+              >
+                #{{ s.session_id }} — {{ s.columna_frecuencia }} — {{ s.timestamp }}{{ idx === 0 ? ' (última)' : '' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="slider-area">
+            <input
+              v-model.number="store.predictLength"
+              type="range"
+              min="20"
+              max="70"
+              step="0.1"
+              class="length-slider"
+              :disabled="!store.hasTrainResults"
+            />
+            <div class="slider-labels">
+              <span class="mono">20 cm</span>
+              <span class="mono">70 cm</span>
+            </div>
+          </div>
+
+          <div class="length-display">
+            <input
+              v-model.number="store.predictLength"
+              type="number"
+              min="1"
+              max="200"
+              step="0.1"
+              style="text-align: center; font-size: 32px; width: 120px"
+              :disabled="!store.hasTrainResults"
+            />
+            <span class="unit">cm</span>
+          </div>
+
+          <div class="physics-note">
+            <span class="pn-label">f ∝ 1/L</span>
+            <span class="pn-desc">relación física esperada</span>
+          </div>
+
+          <button
+            class="btn btn-primary"
+            style="width: 100%; justify-content: center"
+            :disabled="!store.hasTrainResults || store.loadingPredict"
+            @click="store.runPredict()"
+          >
+            <div
+              v-if="store.loadingPredict"
+              class="spinner"
+              style="width: 13px; height: 13px"
+            />
+            <span v-else>◉</span>
+            {{ store.loadingPredict ? "Calculando…" : "Predecir frecuencia" }}
+          </button>
+        </div>
+
+        <!-- Session metrics card -->
+        <div v-if="activeTrainSession" class="session-metrics card">
+          <div class="sm-header">
+            <span class="sm-title">MÉTRICAS — SESIÓN ACTIVA</span>
+            <span class="sm-id mono">#{{ activeTrainSession.session_id }}</span>
+          </div>
+          <div class="sm-col">{{ activeTrainSession.columna_frecuencia }} &mdash; {{ activeTrainSession.timestamp }}</div>
+          <div class="sm-rows">
+            <div
+              v-for="res in activeTrainSession.resultados"
+              :key="res.nombre"
+              class="sm-row"
+              :style="{ '--mc': modelColor(res.nombre) }"
+            >
+              <span class="sm-name" :style="{ color: 'var(--mc)' }">{{ res.etiqueta }}</span>
+              <div class="sm-badges">
+                <span class="sm-badge sm-r2">R² {{ res.metricas.r2 != null ? res.metricas.r2.toFixed(3) : '—' }}</span>
+                <span class="sm-badge sm-mse">MSE {{ res.metricas.mse.toFixed(3) }}</span>
+                <span class="sm-badge sm-mae">MAE {{ res.metricas.mae.toFixed(3) }}</span>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div class="length-display">
-          <input
-            v-model.number="store.predictLength"
-            type="number"
-            min="1"
-            max="200"
-            step="0.1"
-            style="text-align: center; font-size: 32px; width: 120px"
-            :disabled="!store.hasTrainResults"
-          />
-          <span class="unit">cm</span>
-        </div>
-
-        <div class="physics-note">
-          <span class="pn-label">f ∝ 1/L</span>
-          <span class="pn-desc">relación física esperada</span>
-        </div>
-
-        <button
-          class="btn btn-primary"
-          style="width: 100%; justify-content: center"
-          :disabled="!store.hasTrainResults || store.loadingPredict"
-          @click="store.runPredict()"
-        >
-          <div
-            v-if="store.loadingPredict"
-            class="spinner"
-            style="width: 13px; height: 13px"
-          />
-          <span v-else>◉</span>
-          {{ store.loadingPredict ? "Calculando…" : "Predecir frecuencia" }}
-        </button>
       </div>
 
       <!-- Results -->
@@ -194,6 +235,12 @@ function modelColor(nombre) {
   return MODEL_COLORS[nombre] ?? "#8899CC";
 }
 
+// ── Active training session (for metrics card + predict calls) ────────────────
+const activeTrainSession = computed(() =>
+  store.trainHistory.find((s) => s.session_id === store.predictSessionId) ??
+  store.trainResult
+);
+
 // ── Prediction history selector ───────────────────────────────────────────
 const selectedPredictId = ref(null);
 
@@ -279,17 +326,153 @@ function formatPredLabel(p, idx, arr) {
 
 .predict-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 300px 1fr;
   gap: 16px;
   flex: 1;
+  min-height: 0;
+}
+
+/* Left column */
+.predict-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
 }
 
 /* Input card */
 .input-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  align-self: start;
+  gap: 14px;
+  align-self: auto;
+}
+
+/* Session picker inside input card */
+.session-pick-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(167, 139, 250, 0.06);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+.session-pick-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--violet);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.session-pick-select {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+}
+
+.session-pick-select option {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+/* Session metrics card */
+.session-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.sm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sm-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.sm-id {
+  font-size: 11px;
+  color: var(--violet);
+  opacity: 0.8;
+}
+
+.sm-col {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+
+.sm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--mc, var(--border));
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: rgba(255,255,255,0.02);
+}
+
+.sm-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.sm-badges {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.sm-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.sm-r2 {
+  border-color: rgba(0,212,170,0.3);
+  color: var(--teal);
+}
+
+.sm-mse {
+  border-color: rgba(255,107,107,0.3);
+  color: var(--coral);
+}
+
+.sm-mae {
+  border-color: rgba(245,200,66,0.3);
+  color: var(--gold-dim);
 }
 
 .input-card-title {

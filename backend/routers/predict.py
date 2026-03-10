@@ -6,15 +6,19 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from backend.schemas import PredictRequest, PredictResponse, PrediccionModelo
-from backend.routers.train import _get_modelos_cache
+from backend.routers.train import _get_modelos_cache, _sessions
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
 
 @router.post("/", response_model=PredictResponse)
 def predecir(req: PredictRequest):
-    """Predice la frecuencia para una longitud dada usando todos los modelos entrenados."""
-    modelos_cache = _get_modelos_cache()
+    """Predice la frecuencia para una longitud dada usando los modelos de la sesión indicada."""
+    if req.session_id:
+        session = next((s for s in _sessions if s["session_id"] == req.session_id), None)
+        modelos_cache = session["modelos_cache"] if session else _get_modelos_cache()
+    else:
+        modelos_cache = _get_modelos_cache()
     if not modelos_cache:
         raise HTTPException(
             status_code=409,

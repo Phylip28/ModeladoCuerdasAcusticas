@@ -37,6 +37,7 @@ export const useLabStore = defineStore('lab', () => {
   const predictLength = ref(45)
   const predictResult = ref(null)   // PredictResponse
   const predictHistory = ref([])    // list<PredictEntry>
+  const predictSessionId = ref(null) // session_id selected for prediction
   const loadingPredict = ref(false)
 
   // ── Report ────────────────────────────────────────────────────────────────
@@ -101,6 +102,7 @@ export const useLabStore = defineStore('lab', () => {
       trainHistory.value = []
       predictResult.value = null
       predictHistory.value = []
+      predictSessionId.value = null
     } catch (e) {
       dataError.value = e.response?.data?.detail ?? e.message
     } finally {
@@ -142,6 +144,7 @@ export const useLabStore = defineStore('lab', () => {
       }
       const { data } = await api.post('/models/train', payload)
       trainHistory.value.push(data)
+      predictSessionId.value = data.session_id
       predictResult.value = null
     } catch (e) {
       trainError.value = e.response?.data?.detail ?? e.message
@@ -153,15 +156,21 @@ export const useLabStore = defineStore('lab', () => {
   async function runPredict() {
     loadingPredict.value = true
     try {
-      const { data } = await api.post('/predict/', { longitud_cm: predictLength.value })
+      const { data } = await api.post('/predict/', {
+        longitud_cm: predictLength.value,
+        session_id: predictSessionId.value ?? null,
+      })
       predictResult.value = data
+      const usedSession = trainHistory.value.find(s => s.session_id === predictSessionId.value)
+        ?? trainResult.value
       predictHistory.value.push({
         predict_id: Math.random().toString(16).slice(2, 10),
         timestamp: new Date().toLocaleTimeString('es-ES', {
           hour: '2-digit', minute: '2-digit', second: '2-digit',
         }),
-        longitudes_originales: trainResult.value?.longitudes_originales ?? [],
-        frecuencias_originales: trainResult.value?.frecuencias_originales ?? [],
+        session_id: predictSessionId.value,
+        longitudes_originales: usedSession?.longitudes_originales ?? [],
+        frecuencias_originales: usedSession?.frecuencias_originales ?? [],
         ...data,
       })
     } catch (e) {
@@ -238,7 +247,7 @@ export const useLabStore = defineStore('lab', () => {
     mlpEpocas, mlpUnidades, mlpLearningRate,
     knnK, svrKernel, svrC, svrEpsilon, arbolProfundidad, bosqueEstimadores, bosqueProfundidad,
     trainHistory, trainResult, loadingTrain, trainError, hasTrainResults, bestModel,
-    predictLength, predictResult, predictHistory, loadingPredict,
+    predictLength, predictResult, predictHistory, predictSessionId, loadingPredict,
     loadingReport, reportError, generatedReports,
     showLoadingOverlay, reload,
     fetchDataset, uploadCSV, manualData, trainModels, runPredict, downloadReport, deleteReport, deleteSession, deletePrediction,

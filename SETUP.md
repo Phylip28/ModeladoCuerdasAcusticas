@@ -4,7 +4,7 @@
 
 ### Paso 1: Clonar el repositorio
 ```bash
-git clone <URL>
+git clone https://github.com/Phylip28/ModeladoCuerdasAcusticas.git
 cd ModeladoCuerdasAcusticas
 ```
 
@@ -97,17 +97,5 @@ git push origin main
 | Archivo CSV no encontrado | Ruta incorrecta del archivo | Verifica `data/datos_guitarra.csv` existe |
 | La app no abre | Entorno virtual no activado | Ejecuta `venv\Scripts\activate` (Windows) o `source venv/bin/activate` (Mac/Linux) |
 | Micrófono no detectado | sounddevice no instalado | `pip install sounddevice` |
-| Advertencia de convergencia | Normal en MLP | Solo una advertencia, el modelo funciona bien |
 
 ---
-
-## 📞 Si necesitas ayuda
-
-1. Revisa el `README.md` (documentación completa)
-2. Ejecuta `python src/tests_manuales.py` para validar todo
-3. Verifica que todas las dependencias están instaladas: `pip list`
-4. Pregunta al equipo en el chat/issue tracker
-
----
-
-**¡Listo! Ya deberías poder ejecutar `python src/main_app.py` sin problemas.**

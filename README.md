@@ -1,11 +1,10 @@
 # Modelado de Cuerdas Acústicas
 
-Aplicación de escritorio para modelar y analizar la relación entre la longitud de una cuerda de guitarra y su frecuencia fundamental usando regresión polinomial y redes neuronales artificiales.
+Web para modelar y analizar la relación entre la longitud de una cuerda de guitarra y su frecuencia fundamental usando regresión polinomial y redes neuronales artificiales.
 
 ## 📋 Requisitos Previos
 
-- **Python 3.10+** (verificar con `python --version`)
-- **pip** (gestor de paquetes de Python)
+- **Python 3.11+**
 - **Micrófono conectado** (opcional, para captura de audio en vivo)
 - **Git** (para clonar el repositorio)
 
@@ -14,11 +13,11 @@ Aplicación de escritorio para modelar y analizar la relación entre la longitud
 ### 1. Clonar o descargar el proyecto
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/Phylip28/ModeladoCuerdasAcusticas.git
 cd ModeladoCuerdasAcusticas
 ```
 
-O descargar el ZIP desde GitHub/GitLab y extraer.
+O descargar el ZIP desde GitHub y extraer.
 
 ### 2. Crear un entorno virtual (Recomendado)
 

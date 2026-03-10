@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_SRC_DIR = _PROJECT_ROOT / "src"
-if str(_SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(_SRC_DIR))
-
 from backend.schemas import PredictRequest, PredictResponse, PrediccionModelo
-from backend.routers.train import _modelos_cache
+from backend.routers.train import _get_modelos_cache
 
 router = APIRouter(prefix="/predict", tags=["predict"])
 
@@ -21,7 +14,8 @@ router = APIRouter(prefix="/predict", tags=["predict"])
 @router.post("/", response_model=PredictResponse)
 def predecir(req: PredictRequest):
     """Predice la frecuencia para una longitud dada usando todos los modelos entrenados."""
-    if not _modelos_cache:
+    modelos_cache = _get_modelos_cache()
+    if not modelos_cache:
         raise HTTPException(
             status_code=409,
             detail="No hay modelos entrenados. Llama primero a POST /models/train.",
@@ -34,9 +28,12 @@ def predecir(req: PredictRequest):
         "polinomial": "Polinomial",
         "mlp": "Red Neuronal (MLP)",
         "svr": "SVR (RBF kernel)",
+        "knn": "KNN",
+        "arbol": "Árbol Decisión",
+        "bosque": "Random Forest",
     }
 
-    for nombre, modelo in _modelos_cache.items():
+    for nombre, modelo in modelos_cache.items():
         try:
             freq = float(modelo.predict(L)[0])
             predicciones.append(
@@ -56,8 +53,6 @@ def predecir(req: PredictRequest):
                 )
             )
 
-    # El "mejor modelo" se define como el que tenga menor MSE (comparado de los trains anteriores)
-    # Por ahora simplemente reportamos el primero; en producción se guardarían las métricas.
     mejor = predicciones[0].nombre if predicciones else ""
 
     return PredictResponse(

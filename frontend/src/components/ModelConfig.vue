@@ -80,7 +80,7 @@
           <label>Grado del polinomio</label>
           <div class="degree-row">
             <button
-              v-for="g in [1, 2, 3, 4, 5]"
+              v-for="g in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
               :key="g"
               class="deg-btn"
               :class="{ active: store.polyGrado === g }"
@@ -90,102 +90,201 @@
               {{ g }}
             </button>
           </div>
-          <div class="hint" v-if="store.polyGrado === 1">
-            ℹ Grado 1 → error alto esperado (f∝1/L no es lineal)
-          </div>
-          <div class="hint hint-good" v-else-if="store.polyGrado >= 2">
-            ℹ Grado {{ store.polyGrado }} → buena aproximación de la hipérbola
-            física
-          </div>
         </div>
       </section>
 
       <!-- MLP config -->
       <section class="card" :class="{ 'card-disabled': !isSelected('mlp') }">
         <div class="card-title">
-          Red Neuronal MLP
+          Red Neuronal
           <span class="badge badge-violet">Deep Learning</span>
         </div>
-        <div class="field">
-          <label>Capas ocultas (nodos por capa, separados por coma)</label>
-          <input
-            v-model="store.mlpCapas"
-            type="text"
-            placeholder="10,10"
-            :disabled="!isSelected('mlp')"
-          />
+        <div class="two-col">
+          <div class="field">
+            <label>Épocas</label>
+            <input
+              v-model.number="store.mlpEpocas"
+              type="number"
+              min="10" max="3000" step="10"
+              :disabled="!isSelected('mlp')"
+            />
+          </div>
+          <div class="field">
+            <label>Neuronas (capa oculta)</label>
+            <input
+              v-model.number="store.mlpUnidades"
+              type="number"
+              min="1" max="200" step="1"
+              :disabled="!isSelected('mlp')"
+            />
+          </div>
         </div>
         <div class="two-col">
+          <div class="field">
+            <label>Tasa de aprendizaje</label>
+            <select
+              v-model="store.mlpLearningRate"
+              :disabled="!isSelected('mlp')"
+            >
+              <option value="0.001">0.001 (lenta)</option>
+              <option value="0.01">0.01 (normal)</option>
+              <option value="0.1">0.1 (rápida)</option>
+              <option value="0.5">0.5 (agresiva)</option>
+            </select>
+          </div>
           <div class="field">
             <label>Activación</label>
             <select
               v-model="store.mlpActivacion"
               :disabled="!isSelected('mlp')"
             >
+              <option value="sigmoid">Sigmoid σ(z)</option>
               <option value="relu">ReLU</option>
-              <option value="tanh">Tanh</option>
-              <option value="logistic">Logistic</option>
+              <option value="linear">Linear (identidad)</option>
             </select>
           </div>
+        </div>
+      </section>
+
+      <!-- SVR config -->
+      <section class="card" :class="{ 'card-disabled': !isSelected('svr') }">
+        <div class="card-title">
+          SVR — Support Vector Regression
+          <span class="badge badge-violet">ML</span>
+        </div>
+        <div class="field">
+          <label>Kernel</label>
+          <select v-model="store.svrKernel" :disabled="!isSelected('svr')">
+            <option value="rbf">RBF (no lineal)</option>
+            <option value="linear">Linear</option>
+            <option value="poly">Polinomial</option>
+          </select>
+        </div>
+        <div class="two-col">
           <div class="field">
-            <label>Max iteraciones</label>
+            <label>C (regularización)</label>
             <input
-              v-model.number="store.mlpMaxIter"
+              v-model.number="store.svrC"
               type="number"
-              min="100"
-              max="20000"
-              step="100"
-              :disabled="!isSelected('mlp')"
+              min="0.01" max="1000" step="0.1"
+              :disabled="!isSelected('svr')"
+            />
+          </div>
+          <div class="field">
+            <label>Epsilon (ε)</label>
+            <input
+              v-model.number="store.svrEpsilon"
+              type="number"
+              min="0" max="10" step="0.01"
+              :disabled="!isSelected('svr')"
             />
           </div>
         </div>
       </section>
 
-      <!-- SVR info -->
-      <section class="card" :class="{ 'card-disabled': !isSelected('svr') }">
+      <!-- KNN config -->
+      <section class="card" :class="{ 'card-disabled': !isSelected('knn') }">
         <div class="card-title">
-          SVR — Vector Support Regression
-          <span class="badge badge-teal">ML</span>
+          KNN
+          <span class="badge badge-violet">ML</span>
         </div>
-        <div class="svr-info">
-          <p>Kernel <strong>RBF</strong> con C=100, γ=0.1, ε=0.1.</p>
-          <p>Excelente para relaciones no lineales con pocos datos.</p>
-          <p>No requiere configuración adicional para este dataset.</p>
+        <div class="field">
+          <label>Número de vecinos (k)</label>
+          <div class="knn-row">
+            <input
+              v-model.number="store.knnK"
+              type="range"
+              min="1" max="20"
+              :disabled="!isSelected('knn')"
+              class="knn-slider"
+            />
+            <span class="mono text-gold knn-val">{{ store.knnK }}</span>
+          </div>
+          <div class="hint hint-good">k={{ store.knnK }} → promedia los {{ store.knnK }} puntos más cercanos</div>
+        </div>
+      </section>
+
+      <!-- Árbol Decisión config -->
+      <section class="card" :class="{ 'card-disabled': !isSelected('arbol') }">
+        <div class="card-title">
+          Árbol de Decisión
+          <span class="badge badge-violet">ML</span>
+        </div>
+        <div class="field">
+          <label>Profundidad máxima (vaciar = sin límite)</label>
+          <input
+            v-model.number="store.arbolProfundidad"
+            type="number"
+            min="1" max="50" placeholder="sin límite"
+            :disabled="!isSelected('arbol')"
+          />
+          <div class="hint hint-good">Profundidad: {{ store.arbolProfundidad ?? 'sin límite' }}</div>
+        </div>
+      </section>
+
+      <!-- Random Forest config -->
+      <section class="card" :class="{ 'card-disabled': !isSelected('bosque') }">
+        <div class="card-title">
+          Random Forest
+          <span class="badge badge-violet">ML</span>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Nº árboles</label>
+            <input
+              v-model.number="store.bosqueEstimadores"
+              type="number"
+              min="10" max="500" step="10"
+              :disabled="!isSelected('bosque')"
+            />
+          </div>
+          <div class="field">
+            <label>Profundidad máx.</label>
+            <input
+              v-model.number="store.bosqueProfundidad"
+              type="number"
+              min="1" max="50" placeholder="sin límite"
+              :disabled="!isSelected('bosque')"
+            />
+          </div>
         </div>
       </section>
     </div>
 
-    <!-- Result summary -->
-    <Transition name="slide-up">
-      <div v-if="store.hasTrainResults" class="results-summary">
-        <div class="results-label">
-          <span
-            class="status-dot ok"
-            style="
-              display: inline-block;
-              width: 7px;
-              height: 7px;
-              border-radius: 50%;
-              box-shadow: 0 0 6px var(--teal);
-              background: var(--teal);
-            "
-          />
-          Entrenamiento completado
-        </div>
-        <div class="results-chips">
-          <div
-            v-for="res in store.trainResult.resultados"
-            :key="res.nombre"
-            class="result-chip"
-          >
-            <span>{{ res.etiqueta }}</span>
-            <span class="mono text-gold"
-              >R²={{ res.metricas.r2?.toFixed(4) ?? "—" }}</span
+    <!-- Training history -->
+    <div v-if="store.hasTrainResults" class="history-section">
+      <div class="history-header">
+        <span class="history-title">HISTORIAL DE ENTRENAMIENTOS</span>
+        <span class="history-count">{{ store.trainHistory.length }} sesión(es)</span>
+      </div>
+      <div class="history-list">
+        <div
+          v-for="session in [...store.trainHistory].reverse()"
+          :key="session.session_id"
+          class="history-item"
+        >
+          <div class="history-item-header">
+            <div class="history-meta">
+              <span class="history-id mono">#{{ session.session_id }}</span>
+              <span class="history-col">{{ session.columna_frecuencia }}</span>
+              <span class="history-time mono">{{ session.timestamp }}</span>
+            </div>
+            <button class="btn-delete" @click="store.deleteSession(session.session_id)" title="Eliminar sesión">✕</button>
+          </div>
+          <div class="history-chips">
+            <div
+              v-for="res in session.resultados"
+              :key="res.nombre"
+              class="result-chip"
             >
+              <span class="chip-label">{{ res.etiqueta }}</span>
+              <span class="mono text-gold">R²={{ res.metricas.r2?.toFixed(4) ?? '—' }}</span>
+              <span class="mono text-muted">MSE={{ res.metricas.mse?.toFixed(2) ?? '—' }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </Transition>
+    </div>
   </div>
 </template>
 
@@ -207,15 +306,36 @@ const modelOptions = [
     id: "svr",
     name: "SVR",
     desc: "Support Vector Regression (RBF)",
-    badge: "badge-teal",
+    badge: "badge-violet",
     tag: "ML",
   },
   {
     id: "mlp",
     name: "Red Neuronal",
-    desc: "MLPRegressor multicapa",
+    desc: "Gradiente descendente con épocas",
     badge: "badge-violet",
-    tag: "MLP",
+    tag: "Deep Learning",
+  },
+  {
+    id: "knn",
+    name: "KNN",
+    desc: "K-Nearest Neighbors Regressor",
+    badge: "badge-violet",
+    tag: "ML",
+  },
+  {
+    id: "arbol",
+    name: "Árbol Decisión",
+    desc: "Decision Tree Regressor",
+    badge: "badge-violet",
+    tag: "ML",
+  },
+  {
+    id: "bosque",
+    name: "Random Forest",
+    desc: "Ensemble de árboles de decisión",
+    badge: "badge-violet",
+    tag: "ML",
   },
 ];
 
@@ -352,6 +472,7 @@ function toggleModel(id) {
   display: flex;
   gap: 6px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
 
 .deg-btn {
@@ -411,40 +532,145 @@ function toggleModel(id) {
   color: var(--teal);
 }
 
-.results-summary {
-  background: rgba(0, 212, 170, 0.07);
-  border: 1px solid rgba(0, 212, 170, 0.2);
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
-}
-
-.results-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--teal);
+/* KNN slider row */
+.knn-row {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-top: 4px;
+}
+.knn-slider {
+  flex: 1;
+  accent-color: var(--coral);
+  cursor: pointer;
+}
+.knn-val {
+  min-width: 24px;
+  text-align: center;
 }
 
-.results-chips {
+/* Training history */
+.history-section {
+  background: rgba(245, 200, 66, 0.04);
+  border: 1px solid rgba(245, 200, 66, 0.18);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.history-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: rgba(245, 200, 66, 0.07);
+  border-bottom: 1px solid rgba(245, 200, 66, 0.15);
+}
+
+.history-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+}
+
+.history-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.history-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.history-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.history-item:last-child { border-bottom: none; }
+
+.history-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+.history-id {
+  font-size: 10px;
+  color: var(--gold-dim);
+}
+
+.history-col {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.history-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.btn-delete {
+  background: none;
+  border: 1px solid rgba(255,107,107,0.25);
+  color: rgba(255,107,107,0.6);
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+.btn-delete:hover {
+  background: rgba(255,107,107,0.12);
+  color: var(--coral);
+  border-color: var(--coral);
+}
+
+.history-chips {
+  display: flex;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .result-chip {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 4px 12px;
+  padding: 3px 10px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 99px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
+}
+
+.chip-label {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.text-muted {
+  color: var(--text-muted);
 }
 </style>

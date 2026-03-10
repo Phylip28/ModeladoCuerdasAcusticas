@@ -9,6 +9,45 @@
       </div>
     </header>
 
+    <!-- Prediction history selector -->
+    <div v-if="store.predictHistory.length > 0" class="pred-history-bar">
+      <div class="pred-selector">
+        <span class="pred-selector-label">PREDICCIÓN</span>
+        <select
+          v-model="selectedPredictId"
+          class="pred-select"
+        >
+          <option
+            v-for="(p, idx) in [...store.predictHistory].reverse()"
+            :key="p.predict_id"
+            :value="p.predict_id"
+          >
+            #{{ p.predict_id }} — {{ p.longitud_cm }} cm — {{ p.timestamp }}{{ idx === 0 ? ' (última)' : '' }}
+          </option>
+        </select>
+      </div>
+      <div class="pred-history-actions">
+        <button
+          class="btn btn-outline btn-sm"
+          :disabled="store.loadingReport"
+          @click="store.downloadReport()"
+          title="Genera un reporte PDF con los modelos actuales"
+        >
+          <span v-if="store.loadingReport">⏳</span>
+          <span v-else>📄</span>
+          {{ store.loadingReport ? 'Generando…' : 'Reporte PDF' }}
+        </button>
+        <button
+          class="btn btn-ghost btn-sm"
+          :disabled="!selectedPredictId"
+          @click="store.deletePrediction(selectedPredictId)"
+          title="Eliminar esta predicción del historial"
+        >
+          ✕ Eliminar
+        </button>
+      </div>
+    </div>
+
     <div v-if="!store.hasTrainResults" class="warn-banner">
       ← Entrena los modelos primero en la pestaña <strong>Modelos</strong>
     </div>
@@ -137,7 +176,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useLabStore } from "@/stores/labStore";
 
 const store = useLabStore();
@@ -146,31 +185,59 @@ const MODEL_COLORS = {
   polinomial: "#F5C842",
   svr: "#00D4AA",
   mlp: "#A78BFA",
+  knn: "#FF6B6B",
+  arbol: "#4ADE80",
+  bosque: "#FB923C",
 };
 
 function modelColor(nombre) {
   return MODEL_COLORS[nombre] ?? "#8899CC";
 }
 
+// ── Prediction history selector ───────────────────────────────────────────
+const selectedPredictId = ref(null);
+
+watch(
+  () => store.predictHistory.length,
+  () => {
+    if (store.predictHistory.length > 0) {
+      selectedPredictId.value = store.predictHistory.at(-1).predict_id;
+    }
+  }
+);
+
+const activePrediction = computed(() =>
+  store.predictHistory.find((p) => p.predict_id === selectedPredictId.value) ??
+  store.predictResult
+);
+
 // f ∝ 1/L → f = k/L, calibrar k con el promedio del dataset
 const physicsEstimate = computed(() => {
-  if (!store.trainResult || !store.predictResult) return 0;
-  const Xs = store.trainResult.longitudes_originales;
-  const ys = store.trainResult.frecuencias_originales;
+  const ap = activePrediction.value;
+  if (!ap) return 0;
+  const Xs = ap.longitudes_originales;
+  const ys = ap.frecuencias_originales;
+  if (!Xs?.length) return 0;
   const k = Xs.reduce((sum, x, i) => sum + x * ys[i], 0) / Xs.length;
-  return k / store.predictResult.longitud_cm;
+  return k / ap.longitud_cm;
 });
 
 const maxFreq = computed(() => {
-  if (!store.predictResult) return 500;
+  if (!activePrediction.value) return 500;
   return (
-    Math.max(...store.predictResult.predicciones.map((p) => p.frecuencia_hz)) *
+    Math.max(...activePrediction.value.predicciones.map((p) => p.frecuencia_hz)) *
     1.1
   );
 });
 
 function barWidth(hz) {
   return Math.min(100, (hz / maxFreq.value) * 100);
+}
+
+function formatPredLabel(p, idx, arr) {
+  const rev = [...arr].reverse();
+  const i = rev.indexOf(p);
+  return `#${p.predict_id} — ${p.longitud_cm} cm — ${p.timestamp}${i === 0 ? " (última)" : ""}`;
 }
 </script>
 
@@ -416,5 +483,82 @@ function barWidth(hz) {
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+/* ── Prediction history bar ─────────────────────────────────────────── */
+.pred-history-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pred-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+}
+
+.pred-selector-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pred-select {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  max-width: 320px;
+}
+
+.pred-select option {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.pred-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 5px 11px;
+  font-size: 12px;
+  gap: 5px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--teal);
+  color: var(--teal);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: rgba(0, 212, 170, 0.08);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--coral);
+  color: var(--coral);
 }
 </style>

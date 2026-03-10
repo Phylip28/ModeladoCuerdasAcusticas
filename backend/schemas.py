@@ -40,22 +40,46 @@ class ManualDataRequest(BaseModel):
 
 
 class ConfigPolinomial(BaseModel):
-    grado: int = Field(default=2, ge=1, le=5)
+    grado: int = Field(default=2, ge=1, le=10)
 
 
 class ConfigMLP(BaseModel):
-    capas_ocultas: list[int] = Field(default=[10, 10])
+    epocas: int = Field(default=500, ge=10, le=3000)
+    unidades: int = Field(default=10, ge=1, le=200)
+    learning_rate: float = Field(default=0.01, gt=0)
     activacion: str = Field(default="relu")
-    max_iter: int = Field(default=5000)
+
+
+class ConfigKNN(BaseModel):
+    n_vecinos: int = Field(default=2, ge=1, le=50)
+
+
+class ConfigSVR(BaseModel):
+    kernel: str = Field(default="rbf")
+    C: float = Field(default=1.0, gt=0)
+    epsilon: float = Field(default=0.1, ge=0)
+
+
+class ConfigArbol(BaseModel):
+    max_profundidad: Optional[int] = Field(default=5)
+
+
+class ConfigBosque(BaseModel):
+    n_estimadores: int = Field(default=100, ge=10, le=500)
+    max_profundidad: Optional[int] = Field(default=None)
 
 
 class TrainRequest(BaseModel):
     columna_frecuencia: str
     modelos: list[str] = Field(
-        description="Lista de modelos a entrenar: 'polinomial', 'mlp', 'svr'"
+        description="Lista de modelos: 'polinomial', 'mlp', 'svr', 'knn', 'arbol', 'bosque'"
     )
     config_polinomial: Optional[ConfigPolinomial] = None
     config_mlp: Optional[ConfigMLP] = None
+    config_svr: Optional[ConfigSVR] = None
+    config_knn: Optional[ConfigKNN] = None
+    config_arbol: Optional[ConfigArbol] = None
+    config_bosque: Optional[ConfigBosque] = None
 
 
 class CurvaAjuste(BaseModel):
@@ -80,6 +104,8 @@ class ResultadoModelo(BaseModel):
 
 
 class TrainResponse(BaseModel):
+    session_id: str
+    timestamp: str
     columna_frecuencia: str
     longitudes_originales: list[float]
     frecuencias_originales: list[float]

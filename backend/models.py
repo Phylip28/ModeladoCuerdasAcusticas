@@ -82,12 +82,16 @@ class ModeladorMaestro:
         X: np.ndarray,
         y: np.ndarray,
         *,
-        capas_ocultas: tuple[int, ...] = (10, 10),
+        unidades: int = 10,
         activacion: str = "relu",
         optimizador: str = "adam",
-        max_iter: int = 5000,
+        epocas: int = 500,
+        learning_rate: float = 0.01,
         random_state: int = 42,
     ) -> ResultadoMLP:
+        # Map frontend activation names to sklearn names
+        _act_map = {"sigmoid": "logistic", "linear": "identity"}
+        sklearn_act = _act_map.get(activacion, activacion)
         X, y = self._validar_entradas(X, y)
         pipeline = Pipeline(
             [
@@ -95,10 +99,11 @@ class ModeladorMaestro:
                 (
                     "mlp",
                     MLPRegressor(
-                        hidden_layer_sizes=capas_ocultas,
-                        activation=activacion,
+                        hidden_layer_sizes=(unidades,),
+                        activation=sklearn_act,
                         solver=optimizador,
-                        max_iter=max_iter,
+                        max_iter=epocas,
+                        learning_rate_init=learning_rate,
                         random_state=random_state,
                     ),
                 ),

@@ -16,30 +16,42 @@ export const useLabStore = defineStore('lab', () => {
   // ── Model config ─────────────────────────────────────────────────────────
   const selectedModels = ref(['polinomial'])
   const polyGrado = ref(2)
-  const mlpCapas = ref('10,10')
+  const mlpEpocas = ref(500)
+  const mlpUnidades = ref(10)
+  const mlpLearningRate = ref('0.01')
   const mlpActivacion = ref('relu')
-  const mlpMaxIter = ref(5000)
+  const knnK = ref(2)
+  const svrKernel = ref('rbf')
+  const svrC = ref(1.0)
+  const svrEpsilon = ref(0.1)
+  const arbolProfundidad = ref(5)
+  const bosqueEstimadores = ref(100)
+  const bosqueProfundidad = ref(null)
 
   // ── Train results ─────────────────────────────────────────────────────────
-  const trainResult = ref(null)     // TrainResponse
+  const trainHistory = ref([])      // list<TrainResponse>
   const loadingTrain = ref(false)
   const trainError = ref('')
 
   // ── Prediction ────────────────────────────────────────────────────────────
   const predictLength = ref(45)
   const predictResult = ref(null)   // PredictResponse
+  const predictHistory = ref([])    // list<PredictEntry>
   const loadingPredict = ref(false)
 
   // ── Report ────────────────────────────────────────────────────────────────
   const loadingReport = ref(false)
   const reportError = ref('')
+  const generatedReports = ref([])   // { url, filename, timestamp }
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const columnOptions = computed(() =>
     dataset.value?.columnas_frecuencia ?? []
   )
 
-  const hasTrainResults = computed(() => trainResult.value !== null)
+  const trainResult = computed(() => trainHistory.value.at(-1) ?? null)
+
+  const hasTrainResults = computed(() => trainHistory.value.length > 0)
 
   const bestModel = computed(() => {
     if (!trainResult.value) return null
@@ -86,8 +98,9 @@ export const useLabStore = defineStore('lab', () => {
       if (data.columnas_frecuencia.length) {
         selectedColumn.value = data.columnas_frecuencia[0]
       }
-      trainResult.value = null
+      trainHistory.value = []
       predictResult.value = null
+      predictHistory.value = []
     } catch (e) {
       dataError.value = e.response?.data?.detail ?? e.message
     } finally {
@@ -108,14 +121,27 @@ export const useLabStore = defineStore('lab', () => {
           : null,
         config_mlp: selectedModels.value.includes('mlp')
           ? {
-              capas_ocultas: mlpCapas.value.split(',').map(Number).filter(Boolean),
+              epocas: mlpEpocas.value,
+              unidades: mlpUnidades.value,
+              learning_rate: parseFloat(mlpLearningRate.value),
               activacion: mlpActivacion.value,
-              max_iter: mlpMaxIter.value,
             }
+          : null,
+        config_svr: selectedModels.value.includes('svr')
+          ? { kernel: svrKernel.value, C: svrC.value, epsilon: svrEpsilon.value }
+          : null,
+        config_knn: selectedModels.value.includes('knn')
+          ? { n_vecinos: knnK.value }
+          : null,
+        config_arbol: selectedModels.value.includes('arbol')
+          ? { max_profundidad: arbolProfundidad.value }
+          : null,
+        config_bosque: selectedModels.value.includes('bosque')
+          ? { n_estimadores: bosqueEstimadores.value, max_profundidad: bosqueProfundidad.value }
           : null,
       }
       const { data } = await api.post('/models/train', payload)
-      trainResult.value = data
+      trainHistory.value.push(data)
       predictResult.value = null
     } catch (e) {
       trainError.value = e.response?.data?.detail ?? e.message
@@ -129,6 +155,15 @@ export const useLabStore = defineStore('lab', () => {
     try {
       const { data } = await api.post('/predict/', { longitud_cm: predictLength.value })
       predictResult.value = data
+      predictHistory.value.push({
+        predict_id: Math.random().toString(16).slice(2, 10),
+        timestamp: new Date().toLocaleTimeString('es-ES', {
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+        }),
+        longitudes_originales: trainResult.value?.longitudes_originales ?? [],
+        frecuencias_originales: trainResult.value?.frecuencias_originales ?? [],
+        ...data,
+      })
     } catch (e) {
       console.error(e)
     } finally {
@@ -144,13 +179,24 @@ export const useLabStore = defineStore('lab', () => {
       dataset.value = data
       isManual.value = true
       selectedColumn.value = columnas[0] ?? ''
-      trainResult.value = null
+      trainHistory.value = []
       predictResult.value = null
+      predictHistory.value = []
     } catch (e) {
       dataError.value = e.response?.data?.detail ?? e.message
     } finally {
       loadingData.value = false
     }
+  }
+
+  function deleteSession(sid) {
+    const idx = trainHistory.value.findIndex((s) => s.session_id === sid)
+    if (idx > -1) trainHistory.value.splice(idx, 1)
+  }
+
+  function deletePrediction(pid) {
+    const idx = predictHistory.value.findIndex((p) => p.predict_id === pid)
+    if (idx > -1) predictHistory.value.splice(idx, 1)
   }
 
   async function downloadReport() {
@@ -166,11 +212,13 @@ export const useLabStore = defineStore('lab', () => {
       }
       const resp = await api.post('/report/', payload, { responseType: 'blob' })
       const url = URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'reporte_cuerdas.pdf'
-      a.click()
-      URL.revokeObjectURL(url)
+      const idx = generatedReports.value.length + 1
+      const filename = `reporte_cuerdas_${idx}.pdf`
+      const timestamp = new Date().toLocaleString('es-ES', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+      generatedReports.value.push({ url, filename, timestamp })
     } catch (e) {
       reportError.value = e.response?.data?.detail ?? e.message
     } finally {
@@ -178,13 +226,21 @@ export const useLabStore = defineStore('lab', () => {
     }
   }
 
+  function deleteReport(idx) {
+    const rep = generatedReports.value[idx]
+    if (rep) URL.revokeObjectURL(rep.url)
+    generatedReports.value.splice(idx, 1)
+  }
+
   return {
     dataset, selectedColumn, loadingData, dataError, columnOptions, isManual,
-    selectedModels, polyGrado, mlpCapas, mlpActivacion, mlpMaxIter,
-    trainResult, loadingTrain, trainError, hasTrainResults, bestModel,
-    predictLength, predictResult, loadingPredict,
-    loadingReport, reportError,
+    selectedModels, polyGrado, mlpActivacion,
+    mlpEpocas, mlpUnidades, mlpLearningRate,
+    knnK, svrKernel, svrC, svrEpsilon, arbolProfundidad, bosqueEstimadores, bosqueProfundidad,
+    trainHistory, trainResult, loadingTrain, trainError, hasTrainResults, bestModel,
+    predictLength, predictResult, predictHistory, loadingPredict,
+    loadingReport, reportError, generatedReports,
     showLoadingOverlay, reload,
-    fetchDataset, uploadCSV, manualData, trainModels, runPredict, downloadReport,
+    fetchDataset, uploadCSV, manualData, trainModels, runPredict, downloadReport, deleteReport, deleteSession, deletePrediction,
   }
 })

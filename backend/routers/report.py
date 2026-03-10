@@ -15,7 +15,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 
 from backend.report_generator import generar_pdf_reporte
 from backend.schemas import ReportRequest
-from backend.routers.train import _modelos_cache, _X_cache, _y_cache
+from backend.routers.train import _get_modelos_cache, _get_X_cache, _get_y_cache
 
 router = APIRouter(prefix="/report", tags=["report"])
 
@@ -23,17 +23,27 @@ MODEL_LABELS = {
     "polinomial": "Polinomial",
     "svr": "SVR (RBF)",
     "mlp": "Red Neuronal MLP",
+    "knn": "KNN",
+    "arbol": "Árbol Decisión",
+    "bosque": "Random Forest",
 }
 
 MODEL_COLORS = {
     "polinomial": "#F5C842",
     "svr": "#00D4AA",
     "mlp": "#A78BFA",
+    "knn": "#FF6B6B",
+    "arbol": "#4ADE80",
+    "bosque": "#FB923C",
 }
 
 
 def _generar_grafico_comparativo(reports_dir: Path) -> Path:
     """Genera el PNG del scatter + curvas de ajuste."""
+    _modelos_cache = _get_modelos_cache()
+    _X_cache = _get_X_cache()
+    _y_cache = _get_y_cache()
+
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     fig.patch.set_facecolor("#0C1327")
 
@@ -99,6 +109,10 @@ def _generar_grafico_comparativo(reports_dir: Path) -> Path:
 @router.post("/", response_class=StreamingResponse)
 def generar_reporte(req: ReportRequest):
     """Genera el PDF de reporte y lo devuelve como stream descargable."""
+    _modelos_cache = _get_modelos_cache()
+    _X_cache = _get_X_cache()
+    _y_cache = _get_y_cache()
+
     if not _modelos_cache:
         raise HTTPException(
             status_code=409,
@@ -140,20 +154,18 @@ def generar_reporte(req: ReportRequest):
                 loss_curve = list(mlp_step.loss_curve_)
 
     try:
-        pdf_path = generar_pdf_reporte(
+        ruta_pdf = generar_pdf_reporte(
             datos_modelos=datos_modelos,
             ruta_grafico=ruta_grafico,
             nombre_archivo="reporte_api.pdf",
             directorio_salida=reports_dir,
-            loss_curve=loss_curveg_polinomial.grado if req.config_polinomial else 2,
-            columna_usada=req.columna_frecuencia,
-            ruta_salida=pdf_path,
+            loss_curve=loss_curve,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando PDF: {e}")
 
     def iter_file():
-        with open(pdf_path, "rb") as f:
+        with open(ruta_pdf, "rb") as f:
             yield from f
 
     return StreamingResponse(

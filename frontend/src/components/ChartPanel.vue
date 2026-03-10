@@ -8,12 +8,23 @@
         </p>
       </div>
       <div class="header-actions" v-if="store.hasTrainResults">
+        <div class="session-selector">
+          <label class="session-label">Sesión</label>
+          <select v-model="selectedSessionId" class="session-select">
+            <option
+              v-for="(s, i) in [...store.trainHistory].reverse()"
+              :key="s.session_id"
+              :value="s.session_id"
+            >
+              #{{ s.session_id }} — {{ s.columna_frecuencia }} — {{ s.timestamp }}
+              {{ i === 0 ? '(última)' : '' }}
+            </option>
+          </select>
+        </div>
         <div class="best-model-chip">
           <span class="bm-label">Mejor R²</span>
-          <span class="bm-val">{{ store.bestModel?.etiqueta }}</span>
-          <span class="bm-r2 mono">{{
-            store.bestModel?.metricas.r2?.toFixed(5)
-          }}</span>
+          <span class="bm-val">{{ activeBestModel?.etiqueta }}</span>
+          <span class="bm-r2 mono">{{ activeBestModel?.metricas.r2?.toFixed(5) }}</span>
         </div>
       </div>
     </header>
@@ -30,7 +41,7 @@
       <!-- Metrics row -->
       <div class="metrics-row">
         <div
-          v-for="res in store.trainResult.resultados"
+          v-for="res in activeSession.resultados"
           :key="res.nombre"
           class="metric-card"
           :style="{ '--accent': modelColor(res.nombre) }"
@@ -91,7 +102,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -120,6 +131,36 @@ ChartJS.register(
 );
 
 const store = useLabStore();
+
+// ── Session selector ──
+const selectedSessionId = ref(store.trainResult?.session_id ?? null);
+
+// Keep selector pointing to latest when a new training completes
+watch(
+  () => store.trainHistory.length,
+  () => {
+    selectedSessionId.value = store.trainResult?.session_id ?? null;
+  },
+);
+
+// Also initialise if store already has sessions when panel mounts
+if (!selectedSessionId.value && store.trainResult) {
+  selectedSessionId.value = store.trainResult.session_id;
+}
+
+const activeSession = computed(
+  () =>
+    store.trainHistory.find((s) => s.session_id === selectedSessionId.value) ??
+    store.trainResult,
+);
+
+const activeBestModel = computed(() => {
+  if (!activeSession.value) return null;
+  return activeSession.value.resultados.reduce((best, cur) =>
+    cur.metricas.mse < best.metricas.mse ? cur : best,
+    activeSession.value.resultados[0],
+  );
+});
 
 const MODEL_COLORS = {
   polinomial: "#F5C842",
@@ -172,12 +213,12 @@ const baseChartOptions = {
 
 // ── Scatter data ──
 const scatterData = computed(() => {
-  if (!store.trainResult) return { datasets: [] };
+  if (!activeSession.value) return { datasets: [] };
   const {
     longitudes_originales: Xs,
     frecuencias_originales: ys,
     resultados,
-  } = store.trainResult;
+  } = activeSession.value;
 
   const scatterPoints = Xs.map((x, i) => ({ x, y: ys[i] }));
 
@@ -243,8 +284,8 @@ const scatterOptions = computed(() => ({
 
 // ── Residual data ──
 const residualData = computed(() => {
-  if (!store.trainResult) return { labels: [], datasets: [] };
-  const { longitudes_originales: Xs, resultados } = store.trainResult;
+  if (!activeSession.value) return { labels: [], datasets: [] };
+  const { longitudes_originales: Xs, resultados } = activeSession.value;
   const labels = Xs.map((x) => x.toFixed(1));
 
   const datasets = resultados.map((res) => ({
@@ -285,12 +326,12 @@ const residualOptions = computed(() => ({
 
 // ── Loss curve ──
 const hasMlpLoss = computed(() => {
-  const mlp = store.trainResult?.resultados.find((r) => r.nombre === "mlp");
+  const mlp = activeSession.value?.resultados.find((r) => r.nombre === "mlp");
   return mlp?.loss_curve && mlp.loss_curve.length > 0;
 });
 
 const lossData = computed(() => {
-  const mlp = store.trainResult?.resultados.find((r) => r.nombre === "mlp");
+  const mlp = activeSession.value?.resultados.find((r) => r.nombre === "mlp");
   if (!mlp?.loss_curve) return { labels: [], datasets: [] };
   const labels = mlp.loss_curve.map((_, i) => i + 1);
   return {
@@ -365,6 +406,47 @@ const lossOptions = computed(() => ({
   font-size: 12px;
   color: var(--text-muted);
   margin-top: 3px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.session-selector {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 5px 10px;
+}
+
+.session-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.session-select {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  max-width: 280px;
+}
+
+.session-select option {
+  background: var(--bg-deep);
+  color: var(--text-primary);
 }
 
 .best-model-chip {

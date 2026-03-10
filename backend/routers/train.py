@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
+
 import numpy as np
 from fastapi import APIRouter, HTTPException
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -22,11 +28,25 @@ from backend.routers.data import get_active_df
 
 router = APIRouter(prefix="/models", tags=["models"])
 
-# Cache de modelos entrenados (se actualizan en cada llamada a /train)
-_modelos_cache: dict[str, object] = {}
+# Each session: {"session_id", "modelos_cache": dict[str, pipeline], "X", "y", "columna"}
+# Latest session's modelos_cache is exposed as _modelos_cache for predict compatibility
+_sessions: list[dict] = []
 _X_cache: np.ndarray | None = None
 _y_cache: np.ndarray | None = None
 _columna_cache: str | None = None
+
+
+def _get_modelos_cache() -> dict:
+    """Returns the most recently trained models (for other routers)."""
+    return _sessions[-1]["modelos_cache"] if _sessions else {}
+
+
+def _get_X_cache() -> "np.ndarray | None":
+    return _X_cache
+
+
+def _get_y_cache() -> "np.ndarray | None":
+    return _y_cache
 
 
 def _extraer_ecuacion(pipeline: Pipeline, grado: int) -> str:
@@ -55,7 +75,7 @@ def _extraer_ecuacion(pipeline: Pipeline, grado: int) -> str:
 @router.post("/train", response_model=TrainResponse)
 def entrenar_modelos(req: TrainRequest):
     """Entrena los modelos seleccionados y devuelve métricas y curvas de ajuste."""
-    global _modelos_cache, _X_cache, _y_cache, _columna_cache
+    global _X_cache, _y_cache, _columna_cache
 
     df = get_active_df()
     import pandas as pd
@@ -81,17 +101,16 @@ def entrenar_modelos(req: TrainRequest):
     maestro = ModeladorMaestro()
     L_plot = np.linspace(X.min(), X.max(), 200)
     resultados: list[ResultadoModelo] = []
+    session_modelos: dict = {}
 
     for nombre_modelo in req.modelos:
         if nombre_modelo == "polinomial":
             config = req.config_polinomial
             grado = config.grado if config else 2
-
             res = maestro.ajuste_polinomial(X, y, grado=grado)
-            _modelos_cache["polinomial"] = res.modelo
+            session_modelos["polinomial"] = res.modelo
             y_pred = res.modelo.predict(X.reshape(-1, 1))
             curva_y = res.modelo.predict(L_plot.reshape(-1, 1)).tolist()
-
             resultados.append(
                 ResultadoModelo(
                     nombre="polinomial",
@@ -102,8 +121,7 @@ def entrenar_modelos(req: TrainRequest):
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
                     curva_ajuste=CurvaAjuste(
-                        longitudes=L_plot.tolist(),
-                        frecuencias_pred=curva_y,
+                        longitudes=L_plot.tolist(), frecuencias_pred=curva_y
                     ),
                     residuos=(y - y_pred).tolist(),
                     ecuacion=_extraer_ecuacion(res.modelo, grado),
@@ -112,17 +130,16 @@ def entrenar_modelos(req: TrainRequest):
 
         elif nombre_modelo == "mlp":
             config = req.config_mlp
-            capas = tuple(config.capas_ocultas) if config else (10, 10)
+            unidades = config.unidades if config else 10
             act = config.activacion if config else "relu"
-            max_it = config.max_iter if config else 5000
-
+            epocas = config.epocas if config else 500
+            lr = config.learning_rate if config else 0.01
             res = maestro.red_neuronal_mlp(
-                X, y, capas_ocultas=capas, activacion=act, max_iter=max_it
+                X, y, unidades=unidades, activacion=act, epocas=epocas, learning_rate=lr
             )
-            _modelos_cache["mlp"] = res.modelo
+            session_modelos["mlp"] = res.modelo
             y_pred = res.modelo.predict(X.reshape(-1, 1))
             curva_y = res.modelo.predict(L_plot.reshape(-1, 1)).tolist()
-
             resultados.append(
                 ResultadoModelo(
                     nombre="mlp",
@@ -133,8 +150,7 @@ def entrenar_modelos(req: TrainRequest):
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
                     curva_ajuste=CurvaAjuste(
-                        longitudes=L_plot.tolist(),
-                        frecuencias_pred=curva_y,
+                        longitudes=L_plot.tolist(), frecuencias_pred=curva_y
                     ),
                     residuos=(y - y_pred).tolist(),
                     loss_curve=res.loss_curve,
@@ -142,29 +158,128 @@ def entrenar_modelos(req: TrainRequest):
             )
 
         elif nombre_modelo == "svr":
+            config = req.config_svr
+            kernel = config.kernel if config else "rbf"
+            C = config.C if config else 1.0
+            epsilon = config.epsilon if config else 0.1
             svr_pipeline = Pipeline(
                 [
                     ("scaler", StandardScaler()),
-                    ("svr", SVR(kernel="rbf", C=100, gamma=0.1, epsilon=0.1)),
+                    ("svr", SVR(kernel=kernel, C=C, epsilon=epsilon)),
                 ]
             )
             svr_pipeline.fit(X.reshape(-1, 1), y)
-            _modelos_cache["svr"] = svr_pipeline
+            session_modelos["svr"] = svr_pipeline
             y_pred = svr_pipeline.predict(X.reshape(-1, 1))
             curva_y = svr_pipeline.predict(L_plot.reshape(-1, 1)).tolist()
-
             resultados.append(
                 ResultadoModelo(
                     nombre="svr",
-                    etiqueta="SVR (RBF kernel)",
+                    etiqueta=f"SVR ({kernel}, C={C})",
                     metricas=MetricasModelo(
                         mse=float(mean_squared_error(y, y_pred)),
                         r2=float(r2_score(y, y_pred)),
                         mae=float(mean_absolute_error(y, y_pred)),
                     ),
                     curva_ajuste=CurvaAjuste(
-                        longitudes=L_plot.tolist(),
-                        frecuencias_pred=curva_y,
+                        longitudes=L_plot.tolist(), frecuencias_pred=curva_y
+                    ),
+                    residuos=(y - y_pred).tolist(),
+                )
+            )
+
+        elif nombre_modelo == "knn":
+            config = req.config_knn
+            k = config.n_vecinos if config else 5
+            knn_pipeline = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    ("knn", KNeighborsRegressor(n_neighbors=k)),
+                ]
+            )
+            knn_pipeline.fit(X.reshape(-1, 1), y)
+            session_modelos["knn"] = knn_pipeline
+            y_pred = knn_pipeline.predict(X.reshape(-1, 1))
+            curva_y = knn_pipeline.predict(L_plot.reshape(-1, 1)).tolist()
+            resultados.append(
+                ResultadoModelo(
+                    nombre="knn",
+                    etiqueta=f"KNN (k={k})",
+                    metricas=MetricasModelo(
+                        mse=float(mean_squared_error(y, y_pred)),
+                        r2=float(r2_score(y, y_pred)),
+                        mae=float(mean_absolute_error(y, y_pred)),
+                    ),
+                    curva_ajuste=CurvaAjuste(
+                        longitudes=L_plot.tolist(), frecuencias_pred=curva_y
+                    ),
+                    residuos=(y - y_pred).tolist(),
+                )
+            )
+
+        elif nombre_modelo == "arbol":
+            config = req.config_arbol
+            max_depth = config.max_profundidad if config else None
+            arbol_pipeline = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "arbol",
+                        DecisionTreeRegressor(max_depth=max_depth, random_state=42),
+                    ),
+                ]
+            )
+            arbol_pipeline.fit(X.reshape(-1, 1), y)
+            session_modelos["arbol"] = arbol_pipeline
+            y_pred = arbol_pipeline.predict(X.reshape(-1, 1))
+            curva_y = arbol_pipeline.predict(L_plot.reshape(-1, 1)).tolist()
+            depth_label = f"prof={max_depth}" if max_depth else "sin límite"
+            resultados.append(
+                ResultadoModelo(
+                    nombre="arbol",
+                    etiqueta=f"Árbol Decisión ({depth_label})",
+                    metricas=MetricasModelo(
+                        mse=float(mean_squared_error(y, y_pred)),
+                        r2=float(r2_score(y, y_pred)),
+                        mae=float(mean_absolute_error(y, y_pred)),
+                    ),
+                    curva_ajuste=CurvaAjuste(
+                        longitudes=L_plot.tolist(), frecuencias_pred=curva_y
+                    ),
+                    residuos=(y - y_pred).tolist(),
+                )
+            )
+
+        elif nombre_modelo == "bosque":
+            config = req.config_bosque
+            n_est = config.n_estimadores if config else 100
+            max_depth = config.max_profundidad if config else None
+            bosque_pipeline = Pipeline(
+                [
+                    ("scaler", StandardScaler()),
+                    (
+                        "bosque",
+                        RandomForestRegressor(
+                            n_estimators=n_est, max_depth=max_depth, random_state=42
+                        ),
+                    ),
+                ]
+            )
+            bosque_pipeline.fit(X.reshape(-1, 1), y)
+            session_modelos["bosque"] = bosque_pipeline
+            y_pred = bosque_pipeline.predict(X.reshape(-1, 1))
+            curva_y = bosque_pipeline.predict(L_plot.reshape(-1, 1)).tolist()
+            resultados.append(
+                ResultadoModelo(
+                    nombre="bosque",
+                    etiqueta=f"Random Forest ({n_est} árboles)",
+                    metricas=MetricasModelo(
+                        mse=float(mean_squared_error(y, y_pred)),
+                        r2=float(r2_score(y, y_pred)),
+                        mae=float(mean_absolute_error(y, y_pred)),
+                    ),
+                    curva_ajuste=CurvaAjuste(
+                        longitudes=L_plot.tolist(), frecuencias_pred=curva_y
                     ),
                     residuos=(y - y_pred).tolist(),
                 )
@@ -173,10 +288,24 @@ def entrenar_modelos(req: TrainRequest):
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Modelo desconocido: '{nombre_modelo}'. Use 'polinomial', 'mlp' o 'svr'.",
+                detail=f"Modelo desconocido: '{nombre_modelo}'. Válidos: polinomial, mlp, svr, knn, arbol, bosque.",
             )
 
+    session_id = uuid.uuid4().hex[:8]
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    _sessions.append(
+        {
+            "session_id": session_id,
+            "modelos_cache": session_modelos,
+            "X": X,
+            "y": y,
+            "columna": req.columna_frecuencia,
+        }
+    )
+
     return TrainResponse(
+        session_id=session_id,
+        timestamp=timestamp,
         columna_frecuencia=req.columna_frecuencia,
         longitudes_originales=X.tolist(),
         frecuencias_originales=y.tolist(),

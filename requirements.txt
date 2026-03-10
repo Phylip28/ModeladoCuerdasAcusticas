@@ -6,3 +6,8 @@ sounddevice>=0.4
 fpdf2>=2.7
 customtkinter>=5.2
 matplotlib>=3.7
+
+# Backend
+fastapi>=0.111
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9

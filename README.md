@@ -1,219 +1,182 @@
 # Modelado de Cuerdas Acústicas
 
-Aplicación de escritorio para modelar y analizar la relación entre la longitud de una cuerda de guitarra y su frecuencia fundamental usando regresión polinomial y redes neuronales artificiales.
+Aplicación web full-stack para modelar y analizar la relación entre la longitud de una cuerda de guitarra y su frecuencia fundamental. Usa una API REST en FastAPI (backend) y una SPA en Vue 3 + Vite (frontend) con 6 modelos de regresión: Polinomial, MLP, SVR, KNN, Árbol de Decisión y Random Forest.
+
+---
 
 ## 📋 Requisitos Previos
 
-- **Python 3.10+** (verificar con `python --version`)
-- **pip** (gestor de paquetes de Python)
-- **Micrófono conectado** (opcional, para captura de audio en vivo)
-- **Git** (para clonar el repositorio)
+| Herramienta | Versión mínima |
+|---|---|
+| Python | 3.11+ |
+| Node.js | 18+ |
+| npm | 9+ |
+
+---
 
 ## 🚀 Instalación
 
-### 1. Clonar o descargar el proyecto
+### 1. Clonar el repositorio
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/Phylip28/ModeladoCuerdasAcusticas.git
 cd ModeladoCuerdasAcusticas
 ```
 
-O descargar el ZIP desde GitHub/GitLab y extraer.
-
-### 2. Crear un entorno virtual (Recomendado)
+### 2. Backend — entorno Python
 
 ```bash
-python -m venv venv
-```
+# Crear y activar entorno virtual
+python -m venv .venv
 
-**Activar el entorno virtual:**
+# Linux / Mac
+source .venv/bin/activate
 
-- **Windows:**
-  ```bash
-  venv\Scripts\activate
-  ```
+# Windows
+.venv\Scripts\activate
 
-- **Mac/Linux:**
-  ```bash
-  source venv/bin/activate
-  ```
-
-### 3. Instalar dependencias
-
-```bash
+# Instalar dependencias
 pip install -r requirements.txt
 ```
 
-**Dependencias principales:**
-- `numpy` - Computación numérica
-- `pandas` - Manipulación de datos
-- `scikit-learn` - Modelado de regresión y redes neuronales
-- `scipy` - Análisis de Fourier
-- `sounddevice` - Captura de audio
-- `fpdf2` - Generación de reportes PDF
-- `customtkinter` - Interfaz gráfica moderna
-- `matplotlib` - Visualización de gráficos
+### 3. Frontend — dependencias Node
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+---
+
+## ▶️ Ejecución
+
+Necesitas **dos terminales** abiertas simultáneamente, una para el backend y otra para el frontend.
+
+### Terminal 1 — Backend (FastAPI)
+
+Ejecutar **desde la raíz** del proyecto con el entorno virtual activo:
+
+```bash
+uvicorn backend.main:app --reload --port 8000
+```
+
+La API queda disponible en `http://localhost:8000`.  
+Documentación interactiva (Swagger): `http://localhost:8000/docs`
+
+### Terminal 2 — Frontend (Vite + Vue)
+
+```bash
+cd frontend
+npm run dev
+```
+
+La aplicación queda disponible en `http://localhost:5173`.
+
+> El frontend hace proxy automático de `/api/*` → `http://localhost:8000`, por lo que no necesitas configurar nada adicional.
+
+---
 
 ## 📁 Estructura del Proyecto
 
 ```
 ModeladoCuerdasAcusticas/
-├── src/                          # Código fuente
-│   ├── main_app.py              # Aplicación principal (GUI)
-│   ├── data_loader.py           # Carga y limpieza de datos
-│   ├── models.py                # Modelos de regresión (polinomial + MLP + inverso)
-│   ├── audio_capture.py         # Captura de audio y detección de frecuencia
+├── backend/                      # API REST (FastAPI)
+│   ├── main.py                  # Punto de entrada de la API
+│   ├── schemas.py               # Modelos Pydantic (request / response)
+│   ├── models.py                # Lógica de entrenamiento de modelos
 │   ├── report_generator.py      # Generación de reportes PDF
-│   └── tests_manuales.py        # Pruebas sin GUI
+│   └── routers/
+│       ├── data.py              # Endpoints de carga de datos
+│       ├── train.py             # Endpoints de entrenamiento
+│       ├── predict.py           # Endpoints de predicción
+│       └── report.py            # Endpoint de generación de PDF
+├── frontend/                     # SPA (Vue 3 + Vite)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── DataPanel.vue    # Panel de carga y edición de datos
+│   │   │   ├── ModelConfig.vue  # Configuración y entrenamiento de modelos
+│   │   │   ├── ChartPanel.vue   # Panel de análisis y gráficas
+│   │   │   ├── PredictPanel.vue # Panel de predicción interactiva
+│   │   │   └── ReportPanel.vue  # Panel de reportes PDF
+│   │   ├── stores/
+│   │   │   └── labStore.js      # Estado global (Pinia)
+│   │   ├── App.vue              # Componente raíz + navegación
+│   │   └── style.css            # Tema oscuro osciloscópico
+│   ├── vite.config.js           # Configuración Vite (proxy /api)
+│   └── package.json
 ├── data/
-│   └── datos_guitarra.csv       # Dataset con mediciones reales
-├── reports/                      # Reportes PDF generados
-├── requirements.txt              # Dependencias del proyecto
-├── README.md                     # Este archivo
-└── LICENSE                       # MIT License
+│   └── datos_guitarra.csv       # Dataset con mediciones reales de guitarra
+├── reports/                      # PDFs generados
+├── requirements.txt              # Dependencias Python
+└── README.md
 ```
 
-## ▶️ Ejecución
+---
 
-### Opción 1: GUI Completa (Recomendado)
+## 🧑‍🔬 Flujo de Uso
 
-```bash
-python src/main_app.py
-```
+1. **Datos** — Carga el CSV incluido, sube uno propio o ingresa puntos manualmente.
+2. **Modelos** — Selecciona uno o varios modelos, ajusta sus parámetros y entrena.
+3. **Análisis** — Visualiza las curvas de ajuste, residuos y métricas (R², MSE, MAE). Múltiples sesiones de entrenamiento quedan en el historial y puedes compararlas con el selector de sesión.
+4. **Predicción** — Mueve el slider de longitud y predice la frecuencia con todos los modelos entrenados. Cada predicción queda guardada en el historial.
+5. **Reportes** — Genera y descarga un PDF comparativo con gráficas y métricas.
 
-**Flujo de uso:**
-1. Selecciona columna de frecuencia (dropdown)
-2. Define grado del polinomio (por defecto 3)
-3. Pulsa **"▶ Ejecutar Modelos"** para entrenar
-4. Ve a pestañas para ver gráficos y resultados
-5. En "Entrada de Datos", pulsa **"🎤 Capturar Frecuencia"** (6 segundos)
-6. Toca una cuerda de guitarra cerca del micrófono
-7. Verás el traste detectado y la longitud estimada
-8. Genera el PDF con **"📄 Generar Informe PDF"**
+---
 
-### Opción 2: Pruebas Manuales (Sin GUI)
+## 📊 Dataset
 
-Valida que todos los módulos funcionen:
-
-```bash
-python src/tests_manuales.py
-```
-
-Prueba:
-- ✓ Carga de datos
-- ✓ Entrenamiento de modelos
-- ✓ Captura de audio (grabará 3 segundos)
-
-## 📊 Datos Esperados
-
-El archivo `data/datos_guitarra.csv` debe contener:
+El archivo `data/datos_guitarra.csv` contiene mediciones reales de una guitarra acústica:
 
 | Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `Traste` | int | Número de traste (0-19) |
-| `Longitud (cm)` | float | Longitud de cuerda en cm |
+|---|---|---|
+| `Traste` | int | Número de traste (0–19) |
+| `Longitud (cm)` | float | Longitud de cuerda vibrante en cm |
 | `Hz Spectroid (Android)` | float | Frecuencia medida con Spectroid |
 | `Hz Phyphox (Android)` | float | Frecuencia medida con Phyphox |
 | `Hz Spectroid (Iphone)` | float | Frecuencia medida con Spectroid iOS |
 | `Hz Phyphox (Iphone)` | float | Frecuencia medida con Phyphox iOS |
-| ... | float | Otras columnas de frecuencia |
 
-**Columnas de frecuencia disponibles:**
-- `Hz Spectroid (Android)`
-- `Hz Spectroid (Iphone)`
-- `Hz Phyphox (Android)`
-- `Hz Phyphox (Iphone)`
-- `Hz Decivel X (Android)`
-- `Hz Decivel X (iPhone)`
-
-## 🔍 Módulos Principales
-
-### `data_loader.py`
-- `cargar_datos()` - Carga X (longitud) e y (frecuencia)
-- `cargar_dataframe()` - Carga DataFrame completo
-- `obtener_traste_mas_cercano()` - Busca traste por longitud estimada
-
-### `models.py`
-- `ModeladorMaestro.ajuste_polinomial()` - Regresión polinomial
-- `ModeladorMaestro.red_neuronal_mlp()` - Red neuronal (MLP)
-- `ModeladorMaestro.crear_modelo_inverso()` - Modelo inverso (Hz → longitud)
-
-### `audio_capture.py`
-- `AnalizadorAudio.capturar_frecuencia()` - Captura audio y detecta frecuencia fundamental
-
-### `report_generator.py`
-- `generar_pdf_reporte()` - Genera PDF con gráficos, ecuaciones y convergencia
-
-### `main_app.py`
-- Aplicación GUI principal con 3 pestañas
-
-## ⚠️ Notas Importantes para Colaboradores
-
-1. **Asegúrate de usar Python 3.10+**
-   ```bash
-   python --version
-   ```
-
-2. **Usa siempre un entorno virtual** para evitar conflictos
-   ```bash
-   source venv/bin/activate  # Mac/Linux o venv\Scripts\activate en Windows
-   ```
-
-3. **Los datos deben estar en `data/datos_guitarra.csv`**
-   - Si no existe, la carga de datos fallará
-   - Verifica que el CSV esté en la ruta correcta
-
-4. **El micrófono es opcional**
-   - La GUI funciona sin micrófono (solo verás los gráficos)
-   - Para capturar audio, conecta un micrófono funcionando
-
-5. **Git workflow recomendado:**
-   ```bash
-   git pull origin main              # Descargar cambios
-   pip install -r requirements.txt   # Actualizar dependencias si cambiaron
-   python src/main_app.py            # Ejecutar
-   ```
-
-6. **No hacer commit de:**
-   - Carpeta `venv/`
-   - Carpeta `__pycache__/`
-   - Archivos `.pyc`
-   - Carpeta `.idea/` (IDE settings)
-   - PDFs generados en `reports/`
-
-   (Ya están en `.gitignore`)
+---
 
 ## 🐛 Troubleshooting
 
 | Problema | Solución |
-|----------|----------|
-| `ModuleNotFoundError: No module named 'customtkinter'` | Ejecutar `pip install -r requirements.txt` |
+|---|---|
+| `ModuleNotFoundError` al iniciar el backend | Activar el entorno virtual y ejecutar `pip install -r requirements.txt` |
+| `Error: connect ECONNREFUSED localhost:8000` en el frontend | Asegurarse de que el backend está corriendo en el puerto 8000 |
 | `FileNotFoundError: datos_guitarra.csv` | Verificar que el archivo existe en `data/` |
-| `AttributeError: '_tkinter.tkapp'` | Reiniciar la app, puede ser bug de threading |
-| Micrófono no detectado | Verificar que sounddevice está instalado: `pip install sounddevice` |
-| GPU issues (sklearn) | Ignorar, scikit-learn usa CPU por defecto (está bien) |
-
-## 📝 Scripts Útiles
-
-```bash
-# Limpiar cache de Python
-python -m py_compile src/*.py
-
-# Ejecutar solo pruebas
-python src/tests_manuales.py
-
-# Ver columnas disponibles del CSV
-python -c "import pandas as pd; df = pd.read_csv('data/datos_guitarra.csv'); print(df.columns.tolist())"
-```
-
-## 📄 Licencia
-
-MIT License - Ver archivo `LICENSE`
-
-## 👥 Colaboradores
-
-- Juan Felipe Rendon Herrera
+| Puerto 8000 ocupado | Cambiar el puerto: `uvicorn backend.main:app --reload --port 8001` y actualizar el proxy en `frontend/vite.config.js` |
+| Puerto 5173 ocupado | Vite asignará el siguiente puerto disponible automáticamente |
 
 ---
 
-**Última actualización:** Marzo 9, 2026
+## 📝 Comandos de referencia rápida
+
+```bash
+# Activar entorno virtual (Linux/Mac)
+source .venv/bin/activate
+
+# Iniciar backend
+uvicorn backend.main:app --reload --port 8000
+
+# Iniciar frontend (en otra terminal)
+cd frontend && npm run dev
+
+# Build de producción del frontend
+cd frontend && npm run build
+
+# Ver documentación de la API
+xdg-open http://localhost:8000/docs  # Linux
+open http://localhost:8000/docs      # Mac
+```
+
+---
+
+## 📄 Licencia
+
+MIT License — Ver archivo `LICENSE`
+
+---
+
+**Última actualización:** Marzo 10, 2026
